@@ -1,4 +1,4 @@
-module github.com/keytiles/lib-observability
+module github.com/keytiles/lib-observability-golang
 
 go 1.20
 

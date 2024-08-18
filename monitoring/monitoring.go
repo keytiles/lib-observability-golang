@@ -6,7 +6,7 @@ import (
 	"time"
 
 	ktlogging "github.com/keytiles/lib-logging-golang"
-	kt_observability "github.com/keytiles/lib-observability"
+	kt_observability "github.com/keytiles/lib-observability-golang"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
