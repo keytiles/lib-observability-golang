@@ -1,0 +1,212 @@
+package kt_observability_monitoring
+
+import (
+	"fmt"
+	"reflect"
+	"time"
+
+	ktlogging "github.com/keytiles/lib-logging-golang"
+	kt_observability "github.com/keytiles/lib-observability"
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+var (
+	// A global, openly accessible MetricRegistry to register exposed metrics
+	MetricRegistry *prometheus.Registry
+	// The global key-value pairs used for each Metric - due to our AR Monitoring Standards
+	GlobalMetricLabels prometheus.Labels
+
+	DefaultSummaryObjectives = map[float64]float64{
+		0:    0.02,
+		0.5:  0.02,
+		0.95: 0.02,
+		0.99: 0.02,
+		1:    0.02,
+	}
+)
+
+// Builds a list of Prometheus metric labels from the given map
+func BuildMetricLabels(labels map[string]interface{}) prometheus.Labels {
+
+	metricLabels := prometheus.Labels{}
+
+	for key, value := range labels {
+		metricLabels[key] = fmt.Sprintf("%v", value)
+	}
+
+	return metricLabels
+}
+
+// builds the default key-value pairs due to our Monitoring Standards
+func BuildDefaultGlobalMetricLabels() prometheus.Labels {
+
+	globalLabelsMap := kt_observability.BuildGlobalLabelsMap()
+	return BuildMetricLabels(globalLabelsMap)
+
+}
+
+// Initializing the Prometheus MetricRegistry
+func InitMetrics() {
+	// let's create Metric registry
+	MetricRegistry = prometheus.NewRegistry()
+	// let's build up the global labels
+	GlobalMetricLabels = BuildDefaultGlobalMetricLabels()
+}
+
+// You get back a struct like this when you invoke GetSummaryMetricTemplate(), GetCounterMetricTemplate() or GetGaugeMetricTemplate() methods.
+//
+// Once you created the template you can register it into a MetricRegistry using .Register() method of it.
+// After that you can use GetSummaryMetricInstance(), GetCounterMetricInstance() or GetGaugeMetricInstance() methods with corresponding parametrization
+// to get back a concrete instance of your metric which is ready to be used to collect insights.
+type MetricTemplate struct {
+	fullyQualifiedName string
+	customLabelNames   []string
+	metricType         string
+
+	isRegistered bool
+	summaryVec   *prometheus.SummaryVec
+	counterVec   *prometheus.CounterVec
+	gaugeVec     *prometheus.GaugeVec
+
+	_LOGGER *ktlogging.Logger
+}
+
+func (tpl *MetricTemplate) FullyQualifiedName() string {
+	return tpl.fullyQualifiedName
+}
+
+func (tpl *MetricTemplate) CustomLabelNames() []string {
+	return tpl.customLabelNames
+}
+
+func (tpl *MetricTemplate) MetricType() string {
+	return tpl.metricType
+}
+
+func (tpl *MetricTemplate) IsRegistered() bool {
+	return tpl.isRegistered
+}
+
+// Use this method to register this template into a prometheus MetricRegistry.
+// At this point you can use our global MetricRegistry (see global variable above!).
+// After this you are ready to create concrete instances.
+func (tpl *MetricTemplate) Register(reg prometheus.Registerer) {
+	var err error
+	// if MetricRegistry was not initialized then the Registrer we get will point to a Nil instance - we have to detect that
+	isNil := reflect.ValueOf(reg).IsNil()
+	if !isNil {
+		switch tpl.metricType {
+		case "summary":
+			err = reg.Register(tpl.summaryVec)
+		case "counter":
+			err = reg.Register(tpl.counterVec)
+		case "gauge":
+			err = reg.Register(tpl.gaugeVec)
+		default:
+			err = fmt.Errorf("unknown metric type: %v - don't know how to register", tpl.metricType)
+		}
+	} else {
+		// oops it looks the registry was not initialized...
+		err = fmt.Errorf("registry is Nil... was MetricRegistry initialized?")
+	}
+	if err != nil {
+		tpl._LOGGER.Warn("failed to register %v into registry - error: %v", tpl.ToString(), err)
+	} else {
+		tpl.isRegistered = true
+	}
+}
+
+func (tpl *MetricTemplate) ToString() string {
+	return fmt.Sprintf("MetricTemplate[metricType: %v, name: %v]", tpl.metricType, tpl.fullyQualifiedName)
+}
+
+// Creates a new Summary metric type template which is already using all GlobalMetricLabels plus you can pass in a set of
+// customLabelNames by which filling them up with concrete values you will create your concrete metric instances.
+// See: GetSummaryMetricInstance() method!
+func GetSummaryMetricTemplate(opts prometheus.SummaryOpts, customLabelNames []string) MetricTemplate {
+	opts.ConstLabels = GlobalMetricLabels
+	opts.MaxAge = 60 * time.Second
+	opts.AgeBuckets = 6
+	opts.Objectives = DefaultSummaryObjectives
+
+	customLabelNames = append(customLabelNames, "metricType")
+
+	return MetricTemplate{
+		fullyQualifiedName: prometheus.BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		summaryVec:         prometheus.NewSummaryVec(opts, customLabelNames),
+		customLabelNames:   customLabelNames,
+		metricType:         "summary",
+		_LOGGER:            ktlogging.GetLogger("ar_observability.monitoring.MetricTemplate"),
+	}
+}
+
+// Creates a concrete instance of a previously created Summary template by requiring you to provide concrete values
+// for the customLabelNames you created the template with.
+func GetSummaryMetricInstance(metricTemplate MetricTemplate, customLabels map[string]interface{}) prometheus.Observer {
+	if metricTemplate.metricType != "summary" {
+		err := fmt.Sprintf(".GetSummaryMetricInstance() is invoked on %v but type of metric is different", metricTemplate.ToString())
+		metricTemplate._LOGGER.Error("ciritical error! app will panic - %v", err)
+		panic(err)
+	}
+	if !metricTemplate.isRegistered {
+		metricTemplate._LOGGER.Warn("%v: metric instance creation was invoked but this template was not registered yet...", metricTemplate.ToString())
+	}
+	customLabels["metricType"] = metricTemplate.metricType
+	return metricTemplate.summaryVec.With(BuildMetricLabels(customLabels))
+}
+
+func GetCounterMetricTemplate(opts prometheus.CounterOpts, customLabelNames []string) MetricTemplate {
+	opts.ConstLabels = GlobalMetricLabels
+
+	customLabelNames = append(customLabelNames, "metricType")
+
+	return MetricTemplate{
+		fullyQualifiedName: prometheus.BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		counterVec:         prometheus.NewCounterVec(opts, customLabelNames),
+		customLabelNames:   customLabelNames,
+		metricType:         "counter",
+		_LOGGER:            ktlogging.GetLogger("ar_observability.monitoring.MetricTemplate"),
+	}
+}
+
+func GetCounterMetricInstance(metricTemplate MetricTemplate, customLabels map[string]interface{}) prometheus.Counter {
+	if metricTemplate.metricType != "counter" {
+		err := fmt.Sprintf(".GetCounterMetricInstance() is invoked on %v but type of metric is different", metricTemplate.ToString())
+		metricTemplate._LOGGER.Error("ciritical error! app will panic - %v", err)
+		panic(err)
+	}
+	if !metricTemplate.isRegistered {
+		metricTemplate._LOGGER.Warn("%v: metric instance creation was invoked but this template was not registered yet...", metricTemplate.ToString())
+	}
+
+	customLabels["metricType"] = metricTemplate.metricType
+	return metricTemplate.counterVec.With(BuildMetricLabels(customLabels))
+}
+
+func GetGaugeMetricTemplate(opts prometheus.GaugeOpts, customLabelNames []string) MetricTemplate {
+	opts.ConstLabels = GlobalMetricLabels
+
+	customLabelNames = append(customLabelNames, "metricType")
+
+	return MetricTemplate{
+		fullyQualifiedName: prometheus.BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		gaugeVec:           prometheus.NewGaugeVec(opts, customLabelNames),
+		customLabelNames:   customLabelNames,
+		metricType:         "gauge",
+		_LOGGER:            ktlogging.GetLogger("ar_observability.monitoring.MetricTemplate"),
+	}
+}
+
+func GetGaugeMetricInstance(metricTemplate MetricTemplate, customLabels map[string]interface{}) prometheus.Gauge {
+	if metricTemplate.metricType != "gauge" {
+		err := fmt.Sprintf(".GetGaugeMetricInstance() is invoked on %v but type of metric is different", metricTemplate.ToString())
+		metricTemplate._LOGGER.Error("ciritical error! app will panic - %v", err)
+		panic(err)
+	}
+	if !metricTemplate.isRegistered {
+		metricTemplate._LOGGER.Warn("%v: metric instance creation was invoked but this template was not registered yet...", metricTemplate.ToString())
+	}
+
+	customLabels["metricType"] = metricTemplate.metricType
+	return metricTemplate.gaugeVec.With(BuildMetricLabels(customLabels))
+}
