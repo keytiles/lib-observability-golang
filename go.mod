@@ -18,3 +18,8 @@ require (
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+retract (
+    v1.0.0 // was published under wrong name (repo)
+    v1.0.1 // Trying fix issue but failed
+)
