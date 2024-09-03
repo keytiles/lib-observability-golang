@@ -1,4 +1,15 @@
 
+# release 1.2.1
+
+New features:
+
+Bug fixes:
+ * removed 'custom' label from built in metric templates as not needed - and also updated README to show correct instantiation
+
+Breaking changes:
+
+
+
 # release 1.2.0
 
 New features:

@@ -20,7 +20,7 @@ func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
 	}
 	metricTemplatesAvailable = true
 
-	customLabels := []string{"of", "qualifier", "custom"}
+	customLabels := []string{"of", "qualifier"}
 
 	processingTime_template = GetSummaryMetricTemplate(
 		prometheus.SummaryOpts{

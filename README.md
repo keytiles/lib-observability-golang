@@ -83,8 +83,8 @@ kt_observability_monitoring.InitMetrics()
 kt_observability_monitoring.SetGlobalLabels(globalLabels)
 
 // create some Counters!
-mailFetchExecCountMetric = kt_observability_monitoring.GetCounterMetricInstance(metrics.GetExecCountTemplate(), map[string]interface{}{"of": "mailFetch"})
-mailFetchFailedExecCountMetric = kt_observability_monitoring.GetCounterMetricInstance(metrics.GetErrorCountTemplate(), map[string]interface{}{"of": "mailFetch"})
+mailFetchExecCountMetric = kt_observability_monitoring.GetCounterMetricInstance(metrics.GetExecCountTemplate(), map[string]interface{}{"of": "mailFetch", "qualifier": ""})
+mailFetchFailedExecCountMetric = kt_observability_monitoring.GetCounterMetricInstance(metrics.GetErrorCountTemplate(), map[string]interface{}{"of": "mailFetch", "qualifier": ""})
 
 // and now let's bump
 function fetchMails() {
