@@ -13,8 +13,11 @@ import (
 var (
 	// A global, openly accessible MetricRegistry to register exposed metrics
 	MetricRegistry *prometheus.Registry
-	// The global key-value pairs used for each Metric - due to our AR Monitoring Standards
-	GlobalMetricLabels prometheus.Labels
+	// The global key-value pairs used for each Metric - due to our Monitoring Standards
+	globalMetricLabels prometheus.Labels
+
+	// The global key-value pairs used for each Metric - due to our Monitoring Standards
+	globalLabels map[string]interface{}
 
 	DefaultSummaryObjectives = map[float64]float64{
 		0:    0.02,
@@ -25,7 +28,7 @@ var (
 	}
 )
 
-// Builds a list of Prometheus metric labels from the given map
+// Builds a list of Prometheus metric labels from the given key-value map
 func BuildMetricLabels(labels map[string]interface{}) prometheus.Labels {
 
 	metricLabels := prometheus.Labels{}
@@ -37,20 +40,26 @@ func BuildMetricLabels(labels map[string]interface{}) prometheus.Labels {
 	return metricLabels
 }
 
-// builds the default key-value pairs due to our Monitoring Standards
-func BuildDefaultGlobalMetricLabels() prometheus.Labels {
-
-	globalLabelsMap := kt_observability.BuildGlobalLabelsMap()
-	return BuildMetricLabels(globalLabelsMap)
-
+// returns the current GlobalLabels - key-value pairs attached to all log events
+func GetGlobalLabels() map[string]interface{} {
+	return globalLabels
 }
 
-// Initializing the Prometheus MetricRegistry
+// you can change the GlobalLabels with this - the key-value pairs attached to all log events
+func SetGlobalLabels(labels map[string]interface{}) {
+	globalLabels = labels
+	// transform immediately to Prometheus labels
+	globalMetricLabels = BuildMetricLabels(labels)
+}
+
+// Initializing the Prometheus MetricRegistry. After this 'MetricRegistry' is available and global metric labels are set according to our Monitoring Standards. But feel free to change them via
+// GetGlobalLabels() and SetGlobalLabels() methods!
 func InitMetrics() {
 	// let's create Metric registry
 	MetricRegistry = prometheus.NewRegistry()
 	// let's build up the global labels
-	GlobalMetricLabels = BuildDefaultGlobalMetricLabels()
+	globalLabelsMap := kt_observability.BuildGlobalLabelsMap()
+	SetGlobalLabels(globalLabelsMap)
 }
 
 // You get back a struct like this when you invoke GetSummaryMetricTemplate(), GetCounterMetricTemplate() or GetGaugeMetricTemplate() methods.
@@ -124,7 +133,7 @@ func (tpl *MetricTemplate) ToString() string {
 // customLabelNames by which filling them up with concrete values you will create your concrete metric instances.
 // See: GetSummaryMetricInstance() method!
 func GetSummaryMetricTemplate(opts prometheus.SummaryOpts, customLabelNames []string) MetricTemplate {
-	opts.ConstLabels = GlobalMetricLabels
+	opts.ConstLabels = globalMetricLabels
 	opts.MaxAge = 60 * time.Second
 	opts.AgeBuckets = 6
 	opts.Objectives = DefaultSummaryObjectives
@@ -156,7 +165,7 @@ func GetSummaryMetricInstance(metricTemplate MetricTemplate, customLabels map[st
 }
 
 func GetCounterMetricTemplate(opts prometheus.CounterOpts, customLabelNames []string) MetricTemplate {
-	opts.ConstLabels = GlobalMetricLabels
+	opts.ConstLabels = globalMetricLabels
 
 	customLabelNames = append(customLabelNames, "metricType")
 
@@ -184,7 +193,7 @@ func GetCounterMetricInstance(metricTemplate MetricTemplate, customLabels map[st
 }
 
 func GetGaugeMetricTemplate(opts prometheus.GaugeOpts, customLabelNames []string) MetricTemplate {
-	opts.ConstLabels = GlobalMetricLabels
+	opts.ConstLabels = globalMetricLabels
 
 	customLabelNames = append(customLabelNames, "metricType")
 

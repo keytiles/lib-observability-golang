@@ -1,4 +1,19 @@
 
+# release 1.2.0
+
+New features:
+ * Added support to handle simple way our Metric standards - introducing
+    * kt_observability_monitoring.GetExecCountTemplate()
+    * kt_observability_monitoring.GetErrorCountTemplate()
+    * kt_observability_monitoring.GetWarningCountTemplate()
+    * kt_observability_monitoring.ProcessingTimeTemplate()
+ * From now on kt_observability_monitoring also has GetGlobalLabels() and SetGlobalLabels() methods - just like it work in kt_logging
+
+Bug fixes:
+
+Breaking changes:
+
+
 # release 1.1.0
 
 New features:

@@ -8,17 +8,23 @@ import (
 func BuildGlobalLabelsMap() map[string]interface{} {
 	globalLabels := make(map[string]interface{})
 
-	appName := os.Getenv("CONTAINER_NAME")
-	if appName == "" {
-		appName = "?"
+	serviceName := os.Getenv("SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = os.Getenv("CONTAINER_NAME")
 	}
-	globalLabels["appName"] = appName
+	if serviceName == "" {
+		serviceName = "?"
+	}
+	globalLabels["serviceName"] = serviceName
 
-	appVer := os.Getenv("CONTAINER_VERSION")
-	if appVer == "" {
-		appVer = "?"
+	serviceVer := os.Getenv("SERVICE_VERSION")
+	if serviceVer == "" {
+		serviceVer = os.Getenv("CONTAINER_VERSION")
 	}
-	globalLabels["appVer"] = appVer
+	if serviceVer == "" {
+		serviceVer = "?"
+	}
+	globalLabels["serviceVer"] = serviceVer
 
 	host := os.Getenv("HOSTNAME")
 	if host == "" {
