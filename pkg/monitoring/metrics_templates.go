@@ -59,6 +59,9 @@ func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
 	warningCount_template.Register(reg)
 }
 
+// Returns a pre-defined template of a Counter which you can use to "count executions of something". Something which is part of your normal business logic. And you just want to be able to monitor it.
+//
+// For example
 func GetExecCountTemplate() MetricTemplate {
 	createMetricTemplatesIfNotCreatedYet(MetricRegistry)
 	return execCount_template
@@ -74,7 +77,7 @@ func GetWarningCountTemplate() MetricTemplate {
 	return warningCount_template
 }
 
-func ProcessingTimeTemplate() MetricTemplate {
+func GetProcessingTimeTemplate() MetricTemplate {
 	createMetricTemplatesIfNotCreatedYet(MetricRegistry)
 	return processingTime_template
 }

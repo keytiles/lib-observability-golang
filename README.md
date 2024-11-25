@@ -2,102 +2,57 @@
 
 Common code to add Metrics, Logs whatever - to Go services.
 
-It's pulling in [lib-logging-golang](https://github.com/keytiles/lib-logging-golang) autmatically
+It's pulling in [lib-logging-golang](https://github.com/keytiles/lib-logging-golang) autmatically. And also using the [prometheus library](https://github.com/prometheus/client_golang) to spin up the Prometheus http metrics endpoint.
 
 # What does it bring?
 
-## You can build Labels (for logs and metrics both)
+## Standards!
 
-Quickly according to our standards.
+Most of all. Crossing over both logging and monitoring.
 
-```go
+### Labels
 
-import (
-    // ...
-	ktlogging "github.com/keytiles/lib-logging-golang"
-	kt_observability "github.com/keytiles/lib-observability-golang"
-	kt_observability_logging "github.com/keytiles/lib-observability-golang/logging"
-	kt_observability_monitoring "github.com/keytiles/lib-observability-golang/monitoring"
-    // ...
-)
+Labels are very important part of both. Theye are the key-value pairs which are decorating log events and also metric instances. And central systems provide the way for filtering/grouping based on labels.
 
-// this builds a set of labels comforms our standards
-globalLabels := kt_observability.BuildGlobalLabelsMap()
-// ... now optionaly you can add more globalLabels
+When you are writing a service there are certain labels which makes sense to be present in all log events and all metric instances. Therefore these can be considered as **global labels**. For example "service name" or "host" or "service version". With the lib - as you will see below in the example - you can simply build these and then just register them into both: logs and metrics.
 
-// let's setup the global log labels
-ktlogging.SetGlobalLabels(kt_observability_logging.BuildLogLabels(globalLabels))
-// and now the metrics
-kt_observability_monitoring.InitMetrics()
-kt_observability_monitoring.SetGlobalLabels(globalLabels)
-```
+### Metrics standards
 
-## You can build and handle simple Metrics
+You create and expose Metrics. Cool! But this is something which in itself does not provide any value. You also need to collect and store them (Prometheus, VictoriaMetrics etc) and create dashboards / alerting out of them (Grafana).
 
-Our Metrics standards - supported by this lib out of the box - defines the following basic templates of metrics
- * execCount: Counter - to count executions
- * warningCount: Counter - to count warnings
- * errorCount: Counter - to count errors
- * processingTime: Summary - to measure processing time of something with default quantiles min(0), mean(0.5), max(1) and 0.95th and 0.99th percentiles
+This is not complicated. Technically speaking. However doing it right and (centrally) maintainable way it is more challenging. Experience shows that on the long term too much freedom on Service developer side quickly blowing up the maintainability e.g. of Grafana dashboards. So the question is: can we do it better?
 
-They look like this in Prometheus format
+Certainly yes! But to achieve a healthy balance between Service developer freedom AND Grafana dashboards you need some standards.
 
-```
-# HELP execCount Reports count executions of something (check 'of' attribute!)
-# TYPE execCount counter
-execCount{metricType="counter",of="mailFetch",qualifier="total"} 0
+Therefore the library comes with a concept distinguishing
+ * Metrics templates and
+ * Metric instances
 
-# HELP warningCount Reports count of a warning of something (check 'of' attribute!)
-# TYPE warningCount counter
-warningCount{metricType="counter",of="mailFetch",qualifier="total"} 0
+Every Metric instance you create should be derived from one of the Metric templates! What is a template? Well not much. It has
+ * A metric type, e.g. Counter or Summary
+ * The fixed name of this metric, e.-g. "execCount"
+ * A (pre)fixed set of labels. When one creates a concrete instance of this template he 
+    * must provide value for ALL of those pre-defined labels (empty value is OK)
+    * can not add more labels
 
-# HELP errorCount Reports count of a failure of something (check 'of' attribute!)
-# TYPE errorCount counter
-errorCount{metricType="counter",of="mailFetch",qualifier="total"} 0
-```
+The library pre-defines a few Metrics Templates (which are typically enough in any application - you find them in [metric_templates.go](monitoring/metrics_templates.go)), these are:
+ * ExecCount - a Counter "of" something ("of" is a label)
+ * ErrorCount - a Counter "of" something ("of" is a label) which represents a failure/error. Normally you would like to see 0 here right? And build alerting around these.
+ * WarningCount - a Counter "of" something ("of" is a label) which represents a warning. More relaxed compared to errors but still can be important to keep an eye on.
+ * ProcessingTime - a Summary "of" something ("of" is a label) with which you can measure time of some processing.
 
-And this is how you can quickly create and use these from code:
-
-```go
-
-import (
-    // ...
-	kt_observability "github.com/keytiles/lib-observability-golang"
-	kt_observability_monitoring "github.com/keytiles/lib-observability-golang/monitoring"
-    // ...
-)
-
-var (
-	// Metric instances - available globally
-	mailFetchExecCountMetric          prometheus.Counter
-	mailFetchFailedExecCountMetric    prometheus.Counter
-)
+Once the template is created it is easy to create concrete instances of that template. But all the instances you create will 100% sure conform the "standards" the template defined.
 
 
-// this builds a set of labels comforms our standards
-globalLabels := kt_observability.BuildGlobalLabelsMap()
-// ... now optionaly you can add more globalLabels
+# How to use
 
-// and now the metrics
-kt_observability_monitoring.InitMetrics()
-kt_observability_monitoring.SetGlobalLabels(globalLabels)
+Just take a quick look into the attached example application!
 
-// create some Counters!
-mailFetchExecCountMetric = kt_observability_monitoring.GetCounterMetricInstance(metrics.GetExecCountTemplate(), map[string]interface{}{"of": "mailFetch", "qualifier": ""})
-mailFetchFailedExecCountMetric = kt_observability_monitoring.GetCounterMetricInstance(metrics.GetErrorCountTemplate(), map[string]interface{}{"of": "mailFetch", "qualifier": ""})
+See [test_application.go](tests/integration_tests/test_application.go) !
 
-// and now let's bump
-function fetchMails() {
-    mailFetchExecCountMetric.Inc()
-
-    // ... do it
-
-    if error != nil {
-        // oops we failed!
-        mailFetchFailedExecCountMetric.Inc()
-    }
-}
+You can even run it with
 
 ```
-
+go run test_application.go
+```
 

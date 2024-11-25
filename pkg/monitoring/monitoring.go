@@ -74,8 +74,9 @@ type MetricTemplate struct {
 
 	isRegistered bool
 	summaryVec   *prometheus.SummaryVec
-	counterVec   *prometheus.CounterVec
-	gaugeVec     *prometheus.GaugeVec
+	//summaryOpts  *prometheus.SummaryOpts
+	counterVec *prometheus.CounterVec
+	gaugeVec   *prometheus.GaugeVec
 
 	_LOGGER *ktlogging.Logger
 }
@@ -143,9 +144,10 @@ func GetSummaryMetricTemplate(opts prometheus.SummaryOpts, customLabelNames []st
 	return MetricTemplate{
 		fullyQualifiedName: prometheus.BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		summaryVec:         prometheus.NewSummaryVec(opts, customLabelNames),
-		customLabelNames:   customLabelNames,
-		metricType:         "summary",
-		_LOGGER:            ktlogging.GetLogger("ar_observability.monitoring.MetricTemplate"),
+		//summaryOpts:        &opts,
+		customLabelNames: customLabelNames,
+		metricType:       "summary",
+		_LOGGER:          ktlogging.GetLogger("kt_observability.monitoring.MetricTemplate"),
 	}
 }
 
@@ -161,7 +163,14 @@ func GetSummaryMetricInstance(metricTemplate MetricTemplate, customLabels map[st
 		metricTemplate._LOGGER.Warn("%v: metric instance creation was invoked but this template was not registered yet...", metricTemplate.ToString())
 	}
 	customLabels["metricType"] = metricTemplate.metricType
-	return metricTemplate.summaryVec.With(BuildMetricLabels(customLabels))
+
+	// this is not working for some reason
+	// summaryInstance := prometheus.NewSummary(*metricTemplate.summaryOpts)
+	// MetricRegistry.Register(summaryInstance)
+	// return summaryInstance
+
+	observerInstance := metricTemplate.summaryVec.With(BuildMetricLabels(customLabels))
+	return observerInstance
 }
 
 func GetCounterMetricTemplate(opts prometheus.CounterOpts, customLabelNames []string) MetricTemplate {
@@ -174,7 +183,7 @@ func GetCounterMetricTemplate(opts prometheus.CounterOpts, customLabelNames []st
 		counterVec:         prometheus.NewCounterVec(opts, customLabelNames),
 		customLabelNames:   customLabelNames,
 		metricType:         "counter",
-		_LOGGER:            ktlogging.GetLogger("ar_observability.monitoring.MetricTemplate"),
+		_LOGGER:            ktlogging.GetLogger("kt_observability.monitoring.MetricTemplate"),
 	}
 }
 
@@ -202,7 +211,7 @@ func GetGaugeMetricTemplate(opts prometheus.GaugeOpts, customLabelNames []string
 		gaugeVec:           prometheus.NewGaugeVec(opts, customLabelNames),
 		customLabelNames:   customLabelNames,
 		metricType:         "gauge",
-		_LOGGER:            ktlogging.GetLogger("ar_observability.monitoring.MetricTemplate"),
+		_LOGGER:            ktlogging.GetLogger("kt_observability.monitoring.MetricTemplate"),
 	}
 }
 

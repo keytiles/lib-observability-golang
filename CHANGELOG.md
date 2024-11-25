@@ -1,3 +1,14 @@
+# release 1.3.0
+
+New features:
+ * restructuring internally
+ * providing a test app to test the functionality (/tests/integratio_tests)
+
+Bug fixes:
+ * fixing some typos and stupid method names
+
+Breaking changes:
+
 
 # release 1.2.1
 
@@ -7,7 +18,6 @@ Bug fixes:
  * removed 'custom' label from built in metric templates as not needed - and also updated README to show correct instantiation
 
 Breaking changes:
-
 
 
 # release 1.2.0
