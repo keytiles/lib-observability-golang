@@ -1,3 +1,9 @@
+
+# release 1.4.0
+
+New features:
+ * Observability: added some useful generic metrics templates you can use in any synchronous clients - e.g. http or gRPC clients.
+
 # release 1.3.0
 
 New features:
