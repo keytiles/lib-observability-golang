@@ -18,6 +18,8 @@ var (
 
 	// Generic "req sent" counter for synchronous request clients (HTTP, gRPC, etc)
 	clientReqSentCount_template MetricTemplate
+	// Generic "req success" counter for synchronous request clients (HTTP, gRPC, etc)
+	clientReqSucceededCount_template MetricTemplate
 	// Generic "req failed" counter for synchronous request clients (HTTP, gRPC, etc)
 	clientReqFailedCount_template MetricTemplate
 	// Generic "req retried" warning counter for synchronous request clients (HTTP, gRPC, etc)
@@ -57,6 +59,15 @@ func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
 		}, customClientMetricsLabels,
 	)
 	clientReqSentCount_template.Register(reg)
+
+	clientReqSucceededCount_template = GetCounterMetricTemplate(
+		prometheus.CounterOpts{
+			Namespace: "",
+			Name:      "clientReqSuccessCount",
+			Help:      "Reports success count of a sync client request (check 'of' attribute!)",
+		}, customClientMetricsLabels,
+	)
+	clientReqSucceededCount_template.Register(reg)
 
 	clientReqRetriedWarnCount_template = GetCounterMetricTemplate(
 		prometheus.CounterOpts{
@@ -143,6 +154,12 @@ func GetProcessingTimeTemplate() MetricTemplate {
 func GetClientRequestSentCountTemplate() MetricTemplate {
 	createMetricTemplatesIfNotCreatedYet(MetricRegistry)
 	return clientReqSentCount_template
+}
+
+// Returns a pre-defined template you can use in any synchronous clients (http, grpc, etc) to "count how many times a specific req succeeded".
+func GetClientRequestSucceededCountTemplate() MetricTemplate {
+	createMetricTemplatesIfNotCreatedYet(MetricRegistry)
+	return clientReqSucceededCount_template
 }
 
 // Returns a pre-defined template you can use in any synchronous clients (http, grpc, etc) to "count how many times you had to retry a specific req".
