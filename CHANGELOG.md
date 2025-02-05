@@ -1,4 +1,9 @@
 
+# release 1.5.1
+
+Fixes:
+ * Observability: renaming method NewHttpClientLazyMetrics -> NewHttpClientLazyMetricsSet (not breaking change as feature is totally new)
+
 # release 1.5.0
 
 New features:

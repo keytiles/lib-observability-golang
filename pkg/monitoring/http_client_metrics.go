@@ -26,7 +26,7 @@ type HttpClientLazyMetricsSetOpt func(m *HttpClientLazyMetricsSet)
 // Creates a new metrics set you can use in your HTTP clients to create observability of invoking HTTP endpoints.
 //
 // Pass in "of" as the best name (meaningful) of the endpoint client is invoking! And feel free to use the optional setup too!
-func NewHttpClientLazyMetrics(of string, opts ...HttpClientLazyMetricsSetOpt) *HttpClientLazyMetricsSet {
+func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt) *HttpClientLazyMetricsSet {
 	if of == "" {
 		panic("Can not create HttpClientLazyMetrics with empty 'of' parameter!")
 	}
