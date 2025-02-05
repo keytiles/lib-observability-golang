@@ -1,4 +1,9 @@
 
+# release 1.5.0
+
+New features:
+ * Observability: added HttpClientLazyMetricsSet for easier and full standard Metrics for HTTP clients
+
 # release 1.4.1
 
 Fixes:

@@ -40,7 +40,7 @@ func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
 	// "statusCode" - makes sense for failure/retry maybe processing time cases? You can add here the statusCode you received from the server,
 	//                e.g. in HTTP "400" or "500". For request sent counts makes no sense so just leave it empty ""
 	// "qualifier" - anything else your use case finds useful - or leave empty ""
-	customClientMetricsLabels := []string{"of", "protocol", "statusCode", "qualifier"}
+	customClientMetricsLabels := []string{"of", "protocol", "statusCode", "qualifier", "clientId"}
 
 	clientReqProcessingTime_template = GetSummaryMetricTemplate(
 		prometheus.SummaryOpts{
