@@ -1,4 +1,10 @@
 
+# release 1.5.2
+
+Fixes:
+ * Observability: HttpClientLazyMetricsSet from now works with httpStatusCodes as strings and not int. (not breaking change as feature is totally new)
+
+
 # release 1.5.1
 
 Fixes:

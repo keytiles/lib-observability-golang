@@ -16,9 +16,9 @@ type HttpClientLazyMetricsSet struct {
 
 	reqSentCounter *prometheus.Counter
 
-	reqSuccessCounterByStatusCode map[int]prometheus.Counter
-	reqProcessingTimeByStatusCode map[int]prometheus.Observer
-	reqFailedCounterByStatusCode  map[int]prometheus.Counter
+	reqSuccessCounterByStatusCode map[string]prometheus.Counter
+	reqProcessingTimeByStatusCode map[string]prometheus.Observer
+	reqFailedCounterByStatusCode  map[string]prometheus.Counter
 }
 
 type HttpClientLazyMetricsSetOpt func(m *HttpClientLazyMetricsSet)
@@ -35,9 +35,9 @@ func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt)
 		of:                            of,
 		qualifier:                     "-",
 		clientId:                      "-",
-		reqSuccessCounterByStatusCode: make(map[int]prometheus.Counter),
-		reqProcessingTimeByStatusCode: make(map[int]prometheus.Observer),
-		reqFailedCounterByStatusCode:  make(map[int]prometheus.Counter),
+		reqSuccessCounterByStatusCode: make(map[string]prometheus.Counter),
+		reqProcessingTimeByStatusCode: make(map[string]prometheus.Observer),
+		reqFailedCounterByStatusCode:  make(map[string]prometheus.Counter),
 	}
 
 	for _, o := range opts {
@@ -74,8 +74,9 @@ func (m *HttpClientLazyMetricsSet) RequestSent() {
 	(*m.reqSentCounter).Inc()
 }
 
-// Invoke when client received a success - pass in the httpStatusCode what was returned. This will create+increase the appropriate success counter
-func (m *HttpClientLazyMetricsSet) RequestSucceeded(withHttpStatusCode int) {
+// Invoke when client received a success - pass in the httpStatusCode what was returned. This will create+increase the appropriate success counter.
+// The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can send "2xx" to represent anything in 2xx range.
+func (m *HttpClientLazyMetricsSet) RequestSucceeded(withHttpStatusCode string) {
 	c, found := m.reqSuccessCounterByStatusCode[withHttpStatusCode]
 	if !found {
 		c = GetCounterMetricInstance(GetClientRequestSucceededCountTemplate(), map[string]interface{}{"of": m.of, "protocol": "http", "statusCode": withHttpStatusCode, "qualifier": m.qualifier, "clientId": m.clientId})
@@ -85,7 +86,8 @@ func (m *HttpClientLazyMetricsSet) RequestSucceeded(withHttpStatusCode int) {
 }
 
 // Invoke when client received a failure - pass in the httpStatusCode of the failure. This will create+increase the appropriate failure counter
-func (m *HttpClientLazyMetricsSet) RequestFailed(withHttpStatusCode int) {
+// The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can send "5xx" to represent anything in 5xx range.
+func (m *HttpClientLazyMetricsSet) RequestFailed(withHttpStatusCode string) {
 	c, found := m.reqFailedCounterByStatusCode[withHttpStatusCode]
 	if !found {
 		c = GetCounterMetricInstance(GetClientRequestFailedCountTemplate(), map[string]interface{}{"of": m.of, "protocol": "http", "statusCode": withHttpStatusCode, "qualifier": m.qualifier, "clientId": m.clientId})
@@ -95,7 +97,8 @@ func (m *HttpClientLazyMetricsSet) RequestFailed(withHttpStatusCode int) {
 }
 
 // Track processing times - pass in the httpStatusCode so we can collect segregated. This will maintain a Summary
-func (m *HttpClientLazyMetricsSet) RequestTookMillis(httpStatusCode int, millis float64) {
+// The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can send "2xx" to represent anything in 2xx range.
+func (m *HttpClientLazyMetricsSet) RequestTookMillis(httpStatusCode string, millis float64) {
 	c, found := m.reqProcessingTimeByStatusCode[httpStatusCode]
 	if !found {
 		c = GetSummaryMetricInstance(GetClientRequestProcessingTimeTemplate(), map[string]interface{}{"of": m.of, "protocol": "http", "statusCode": httpStatusCode, "qualifier": m.qualifier, "clientId": m.clientId})
