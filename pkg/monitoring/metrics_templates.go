@@ -26,6 +26,15 @@ var (
 	clientReqRetriedWarnCount_template MetricTemplate
 	// Generic "req took time" (summary - observer) for synchronous request clients (HTTP, gRPC, etc)
 	clientReqProcessingTime_template MetricTemplate
+
+	// Generic "req arrived" counter for servers (HTTP, gRPC, etc)
+	serverServeStartedCount_template MetricTemplate
+	// Generic "req success" counter for servers (HTTP, gRPC, etc)
+	serverServeSucceededCount_template MetricTemplate
+	// Generic "req failed" counter for servers (HTTP, gRPC, etc)
+	serverServeFailedCount_template MetricTemplate
+	// Generic "req took time" (summary - observer) for servers (HTTP, gRPC, etc)
+	serverServeProcessingTime_template MetricTemplate
 )
 
 func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
@@ -40,13 +49,14 @@ func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
 	// "statusCode" - makes sense for failure/retry maybe processing time cases? You can add here the statusCode you received from the server,
 	//                e.g. in HTTP "400" or "500". For request sent counts makes no sense so just leave it empty ""
 	// "qualifier" - anything else your use case finds useful - or leave empty ""
+	// "clientId" - can identify which of your concrete client (sometimes there are multiple) this metrics belong to
 	customClientMetricsLabels := []string{"of", "protocol", "statusCode", "qualifier", "clientId"}
 
 	clientReqProcessingTime_template = GetSummaryMetricTemplate(
 		prometheus.SummaryOpts{
 			Namespace: "",
 			Name:      "clientReqProcessingTime",
-			Help:      "Reports processing time of a sync client request (check 'of' attribute!)",
+			Help:      "Client (HTTP, gRPC, etc) metric. Reports processing time of a sync client request (check 'of' attribute!)",
 		}, customClientMetricsLabels,
 	)
 	clientReqProcessingTime_template.Register(reg)
@@ -55,7 +65,7 @@ func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
 		prometheus.CounterOpts{
 			Namespace: "",
 			Name:      "clientReqSentCount",
-			Help:      "Reports count of a sync client request (check 'of' attribute!)",
+			Help:      "Client (HTTP, gRPC, etc) metric. Reports count of a sync client request (check 'of' attribute!)",
 		}, customClientMetricsLabels,
 	)
 	clientReqSentCount_template.Register(reg)
@@ -64,7 +74,7 @@ func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
 		prometheus.CounterOpts{
 			Namespace: "",
 			Name:      "clientReqSuccessCount",
-			Help:      "Reports success count of a sync client request (check 'of' attribute!)",
+			Help:      "Client (HTTP, gRPC, etc) metric. Reports success count of a sync client request (check 'of' attribute!)",
 		}, customClientMetricsLabels,
 	)
 	clientReqSucceededCount_template.Register(reg)
@@ -73,7 +83,7 @@ func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
 		prometheus.CounterOpts{
 			Namespace: "",
 			Name:      "clientReqRetriedWarnCount",
-			Help:      "Reports count of times a sync client request had to be retried (check 'of' attribute!)",
+			Help:      "Client (HTTP, gRPC, etc) metric. Reports count of times a sync client request had to be retried (check 'of' attribute!)",
 		}, customClientMetricsLabels,
 	)
 	clientReqRetriedWarnCount_template.Register(reg)
@@ -82,10 +92,54 @@ func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
 		prometheus.CounterOpts{
 			Namespace: "",
 			Name:      "clientReqFailedCount",
-			Help:      "Reports failure count of a sync client request (check 'of' attribute!)",
+			Help:      "Client (HTTP, gRPC, etc) metric. Reports failure count of a sync client request (check 'of' attribute!)",
 		}, customClientMetricsLabels,
 	)
 	clientReqFailedCount_template.Register(reg)
+
+	// "serverId" - can identify which of your concrete server (sometimes there are multiple) this metrics belong to
+	// "of" - you can add the name of the endpoint here server is serving
+	// "protocol" - protocol of your server, e.g. "http" or "grpc" or whatever
+	// "statusCode" - makes sense for failures mostly. You can add here the statusCode you your server returned,
+	//                e.g. in HTTP "400" or "500". For "request arrived" or similar counts makes no sense so just leave it empty ""
+	// "qualifier" - anything else your use case finds useful - or leave empty ""
+	customServerMetricsLabels := []string{"of", "protocol", "statusCode", "qualifier", "serverId"}
+
+	serverServeProcessingTime_template = GetSummaryMetricTemplate(
+		prometheus.SummaryOpts{
+			Namespace: "",
+			Name:      "serverServeProcessingTime",
+			Help:      "Server (HTTP, gRPC, etc) metric. Reports processing time of a specific request type (check 'of' attribute!)",
+		}, customServerMetricsLabels,
+	)
+	serverServeProcessingTime_template.Register(reg)
+
+	serverServeStartedCount_template = GetCounterMetricTemplate(
+		prometheus.CounterOpts{
+			Namespace: "",
+			Name:      "serverServeStartedCount",
+			Help:      "Server (HTTP, gRPC, etc) metric. Reports count of serving a specific request type has been started (check 'of' attribute!)",
+		}, customServerMetricsLabels,
+	)
+	serverServeStartedCount_template.Register(reg)
+
+	serverServeSucceededCount_template = GetCounterMetricTemplate(
+		prometheus.CounterOpts{
+			Namespace: "",
+			Name:      "serverServeSuccessCount",
+			Help:      "Server (HTTP, gRPC, etc) metric. Reports success count of serving a specific request type (check 'of' attribute!)",
+		}, customServerMetricsLabels,
+	)
+	serverServeSucceededCount_template.Register(reg)
+
+	serverServeFailedCount_template = GetCounterMetricTemplate(
+		prometheus.CounterOpts{
+			Namespace: "",
+			Name:      "serverServeFailedCount",
+			Help:      "Server (HTTP, gRPC, etc) metric. Reports failure count of serving a specific request type (check 'of' attribute!)",
+		}, customServerMetricsLabels,
+	)
+	serverServeFailedCount_template.Register(reg)
 
 	customGenericLabels := []string{"of", "qualifier"}
 
@@ -178,4 +232,28 @@ func GetClientRequestFailedCountTemplate() MetricTemplate {
 func GetClientRequestProcessingTimeTemplate() MetricTemplate {
 	createMetricTemplatesIfNotCreatedYet(MetricRegistry)
 	return clientReqProcessingTime_template
+}
+
+// Returns a pre-defined template you can use in servers (http, grpc, etc) to "count how many times a specific req has arrived".
+func GetServerServeStartedCountTemplate() MetricTemplate {
+	createMetricTemplatesIfNotCreatedYet(MetricRegistry)
+	return serverServeStartedCount_template
+}
+
+// Returns a pre-defined template you can use in any synchronous clients (http, grpc, etc) to "count how many times a specific req succeeded".
+func GetServerServeSucceededCountTemplate() MetricTemplate {
+	createMetricTemplatesIfNotCreatedYet(MetricRegistry)
+	return serverServeSucceededCount_template
+}
+
+// Returns a pre-defined template you can use in any synchronous clients (http, grpc, etc) to "count how many times a specific req has failed".
+func GetServerServeFailedCountTemplate() MetricTemplate {
+	createMetricTemplatesIfNotCreatedYet(MetricRegistry)
+	return serverServeFailedCount_template
+}
+
+// Returns a pre-defined template you can use in servers (http, grpc, etc) to report "how much time the specific req took".
+func GetServerServeProcessingTimeTemplate() MetricTemplate {
+	createMetricTemplatesIfNotCreatedYet(MetricRegistry)
+	return serverServeProcessingTime_template
 }

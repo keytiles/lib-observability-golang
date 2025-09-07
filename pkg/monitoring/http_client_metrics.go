@@ -28,7 +28,7 @@ type HttpClientLazyMetricsSetOpt func(m *HttpClientLazyMetricsSet)
 // Pass in "of" as the best name (meaningful) of the endpoint client is invoking! And feel free to use the optional setup too!
 func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt) *HttpClientLazyMetricsSet {
 	if of == "" {
-		panic("Can not create HttpClientLazyMetrics with empty 'of' parameter!")
+		panic("Can not create HttpClientLazyMetricsSet with empty 'of' parameter!")
 	}
 
 	metrics := HttpClientLazyMetricsSet{
@@ -48,7 +48,7 @@ func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt)
 }
 
 // Assigns a "qualifier" to all Metric instances in your set of your choice. One example of good qualifiers could be the httpMethod like GET, POST, PUT etc to reflect request type - but can be anything else too of course.
-func WithQualifier(qualifier any) HttpClientLazyMetricsSetOpt {
+func WithHttpClientQualifier(qualifier any) HttpClientLazyMetricsSetOpt {
 	return func(m *HttpClientLazyMetricsSet) {
 		if qualifier != nil {
 			m.qualifier = qualifier
@@ -56,13 +56,23 @@ func WithQualifier(qualifier any) HttpClientLazyMetricsSetOpt {
 	}
 }
 
+// Deprecated: Use WithHttpClientQualifier() method from now!
+func WithQualifier(qualifier any) HttpClientLazyMetricsSetOpt {
+	return WithHttpClientQualifier(qualifier)
+}
+
 // Assigns a "clientId" to all Metric instances in your set. This is very useful if a specific client actually can have multiple instances for whatever reason.
-func WithClientId(id string) HttpClientLazyMetricsSetOpt {
+func WithHttpClientId(id string) HttpClientLazyMetricsSetOpt {
 	return func(m *HttpClientLazyMetricsSet) {
 		if id != "" {
 			m.clientId = id
 		}
 	}
+}
+
+// Deprecated: use WithHttpClientId() instead!
+func WithClientId(id string) HttpClientLazyMetricsSetOpt {
+	return WithHttpClientId(id)
 }
 
 // Invoke when client sent the request - will create+increase counter

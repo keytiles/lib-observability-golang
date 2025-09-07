@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -9,9 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	ktlogging "github.com/keytiles/lib-logging-golang"
+	"github.com/gorilla/mux"
+	kt_logging "github.com/keytiles/lib-logging-golang"
 	kt_observability_logging "github.com/keytiles/lib-observability-golang/pkg/logging"
 	kt_observability_monitoring "github.com/keytiles/lib-observability-golang/pkg/monitoring"
+	http_handler "github.com/keytiles/lib-observability-golang/tests/integration_tests/http"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -33,18 +36,36 @@ func main() {
 	globalLabels["globalLabel2"] = 5
 
 	// set the global labels for logging
-	ktlogging.SetGlobalLabels(kt_observability_logging.BuildLogLabels(globalLabels))
+	kt_logging.SetGlobalLabels(kt_observability_logging.BuildLogLabels(globalLabels))
 
 	// init metrics and set global labels for metrics too
 	kt_observability_monitoring.InitMetrics()
 	kt_observability_monitoring.SetGlobalLabels(globalLabels)
 
-	LOG := ktlogging.GetLogger("main")
+	LOG := kt_logging.GetLogger("main")
 
 	LOG.Info("starting up application...")
 
 	// let's establish the prometheus http endpoint
 	exposeMetrics(LOG, globalLabels)
+
+	// create simple HTTP server
+	httpHost := "0.0.0.0"
+	httpPort := 8080
+	webHandler := http_handler.NewHttpServerHandler()
+	router := mux.NewRouter()
+	router.HandleFunc("/api/v1/ping", webHandler.ServePingOK).Methods("GET")
+	router.HandleFunc("/api/v1/ping-fail", webHandler.ServePingFailed).Methods("GET")
+	LOG.Info("starting http server on host: %s, port: %d.", httpHost, httpPort)
+	go func() {
+		err := http.ListenAndServe(fmt.Sprintf("%s:%d", httpHost, httpPort), router)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	LOG.Info("http server is up! You can execute now")
+	LOG.Info("    http://%s:%s/api/v1/ping - for successful request", httpHost, httpPort)
+	LOG.Info("    http://%s:%s/api/v1/ping-fail - for failed request", httpHost, httpPort)
 
 	// now create some metrics instances -  start with exec/error/warning Counters
 	brokerTopic1_messageArrived = kt_observability_monitoring.GetCounterMetricInstance(kt_observability_monitoring.GetExecCountTemplate(), map[string]interface{}{"of": "msgArrived", "qualifier": "broker-topic-1"})
@@ -59,7 +80,7 @@ func main() {
 	simulateMetricsTicker := time.NewTicker(time.Second * 1)
 
 	go func() {
-		LOG := ktlogging.GetLogger("main.thread")
+		LOG := kt_logging.GetLogger("main.thread")
 
 		doRun := true
 		for doRun {
@@ -89,7 +110,7 @@ func main() {
 
 }
 
-func exposeMetrics(LOG *ktlogging.Logger, globalLabels map[string]interface{}) {
+func exposeMetrics(LOG *kt_logging.Logger, globalLabels map[string]interface{}) {
 
 	kt_observability_monitoring.InitMetrics()
 	kt_observability_monitoring.SetGlobalLabels(globalLabels)
@@ -108,7 +129,7 @@ func exposeMetrics(LOG *ktlogging.Logger, globalLabels map[string]interface{}) {
 
 // This method blocks the execution until process is not stopped
 func waitUntilSigtermArrives() {
-	LOG := ktlogging.GetLogger("main")
+	LOG := kt_logging.GetLogger("main")
 
 	// let's wait now the exit signal
 	done := make(chan os.Signal, 1)
@@ -120,7 +141,7 @@ func waitUntilSigtermArrives() {
 }
 
 func simulateAppLogic() {
-	LOG := ktlogging.GetLogger("main.thread")
+	LOG := kt_logging.GetLogger("main.thread")
 
 	threadExecCount++
 	LOG.Info("----- running round #%d", threadExecCount)

@@ -3,6 +3,7 @@ module github.com/keytiles/lib-observability-golang
 go 1.22.2
 
 require (
+	github.com/gorilla/mux v1.8.0
 	github.com/keytiles/lib-logging-golang v1.1.0
 	github.com/prometheus/client_golang v1.20.0
 )
