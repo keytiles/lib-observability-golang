@@ -1,3 +1,9 @@
+# release 1.6.1
+
+Fixes:
+
+- Logger names were updated to match common pattern "keytiles.<libname>.<package...>.<object>"
+
 # release 1.6.0
 
 New featues:
