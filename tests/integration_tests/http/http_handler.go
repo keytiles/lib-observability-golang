@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	kt_logging "github.com/keytiles/lib-logging-golang"
-	kt_observability_monitoring "github.com/keytiles/lib-observability-golang/pkg/monitoring"
+	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
+	"github.com/keytiles/lib-observability-golang/v2/pkg/kt_observability_monitoring"
 )
 
 type HttpServerHandler struct {

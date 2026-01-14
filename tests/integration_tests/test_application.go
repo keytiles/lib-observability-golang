@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	kt_logging "github.com/keytiles/lib-logging-golang"
-	kt_observability_logging "github.com/keytiles/lib-observability-golang/pkg/logging"
-	kt_observability_monitoring "github.com/keytiles/lib-observability-golang/pkg/monitoring"
-	http_handler "github.com/keytiles/lib-observability-golang/tests/integration_tests/http"
+	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
+	"github.com/keytiles/lib-observability-golang/v2/pkg/kt_observability_logging"
+	"github.com/keytiles/lib-observability-golang/v2/pkg/kt_observability_monitoring"
+	http_handler "github.com/keytiles/lib-observability-golang/v2/tests/integration_tests/http"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -31,7 +31,7 @@ var (
 func main() {
 
 	// build some global labels!
-	globalLabels := make(map[string]interface{})
+	globalLabels := make(map[string]any)
 	globalLabels["globalLabel1"] = "value1"
 	globalLabels["globalLabel2"] = 5
 
@@ -64,15 +64,27 @@ func main() {
 		}
 	}()
 	LOG.Info("http server is up! You can execute now")
-	LOG.Info("    http://%s:%s/api/v1/ping - for successful request", httpHost, httpPort)
-	LOG.Info("    http://%s:%s/api/v1/ping-fail - for failed request", httpHost, httpPort)
+	LOG.Info("    http://%s:%d/api/v1/ping - for successful request", httpHost, httpPort)
+	LOG.Info("    http://%s:%d/api/v1/ping-fail - for failed request", httpHost, httpPort)
 
 	// now create some metrics instances -  start with exec/error/warning Counters
-	brokerTopic1_messageArrived = kt_observability_monitoring.GetCounterMetricInstance(kt_observability_monitoring.GetExecCountTemplate(), map[string]interface{}{"of": "msgArrived", "qualifier": "broker-topic-1"})
-	brokerTopic1_processingFailed = kt_observability_monitoring.GetCounterMetricInstance(kt_observability_monitoring.GetErrorCountTemplate(), map[string]interface{}{"of": "msgProcessingFailed", "qualifier": "broker-topic-1"})
-	brokerTopic1_messageRetried = kt_observability_monitoring.GetCounterMetricInstance(kt_observability_monitoring.GetWarningCountTemplate(), map[string]interface{}{"of": "msgProcessingRetried", "qualifier": "broker-topic-1"})
+	brokerTopic1_messageArrived = kt_observability_monitoring.GetCounterMetricInstance(
+		kt_observability_monitoring.GetExecCountTemplate(),
+		map[string]any{"of": "msgArrived", "qualifier": "broker-topic-1"},
+	)
+	brokerTopic1_processingFailed = kt_observability_monitoring.GetCounterMetricInstance(
+		kt_observability_monitoring.GetErrorCountTemplate(),
+		map[string]any{"of": "msgProcessingFailed", "qualifier": "broker-topic-1"},
+	)
+	brokerTopic1_messageRetried = kt_observability_monitoring.GetCounterMetricInstance(
+		kt_observability_monitoring.GetWarningCountTemplate(),
+		map[string]any{"of": "msgProcessingRetried", "qualifier": "broker-topic-1"},
+	)
 	// and now some processing time simulation
-	brokerTopic1_processingTime = kt_observability_monitoring.GetSummaryMetricInstance(kt_observability_monitoring.GetProcessingTimeTemplate(), map[string]interface{}{"of": "msgProcessingRetried", "qualifier": "broker-topic-1"})
+	brokerTopic1_processingTime = kt_observability_monitoring.GetSummaryMetricInstance(
+		kt_observability_monitoring.GetProcessingTimeTemplate(),
+		map[string]any{"of": "msgProcessingRetried", "qualifier": "broker-topic-1"},
+	)
 
 	LOG.Info("starting main thread...")
 
@@ -110,7 +122,7 @@ func main() {
 
 }
 
-func exposeMetrics(LOG *kt_logging.Logger, globalLabels map[string]interface{}) {
+func exposeMetrics(LOG *kt_logging.Logger, globalLabels map[string]any) {
 
 	kt_observability_monitoring.InitMetrics()
 	kt_observability_monitoring.SetGlobalLabels(globalLabels)
@@ -120,7 +132,10 @@ func exposeMetrics(LOG *kt_logging.Logger, globalLabels map[string]interface{}) 
 	path := "/metrics"
 
 	prometheusExposer := http.NewServeMux()
-	prometheusExposer.Handle(path, promhttp.HandlerFor(kt_observability_monitoring.MetricRegistry, promhttp.HandlerOpts{Registry: kt_observability_monitoring.MetricRegistry}))
+	prometheusExposer.Handle(
+		path,
+		promhttp.HandlerFor(kt_observability_monitoring.MetricRegistry, promhttp.HandlerOpts{Registry: kt_observability_monitoring.MetricRegistry}),
+	)
 
 	go http.ListenAndServe(":"+port, prometheusExposer)
 

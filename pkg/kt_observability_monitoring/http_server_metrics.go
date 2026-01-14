@@ -8,8 +8,9 @@ import (
 
 // If you develop a server for a HTTP API you can use this class to quickly and efficiently attach Metrics to your server.
 //
-// This object is designed the way that it starts empty when created (has 0 Metric) and Metrics are getting created and exposed as you invoke it's methods. This is why it is "lazy".
-// You can track how many times requests were sent, and how many times they succeeded / failed. You also have the possibility to track Request-Response loop times AND you can do it
+// This object is designed the way that it starts empty when created (has 0 Metric) and Metrics are getting created and exposed as you invoke it's methods. This
+// is why it is "lazy". You can track how many times requests were sent, and how many times they succeeded / failed. You also have the possibility to track
+// Request-Response loop times AND you can do it
 // per each HttpSatatus codes/ Methods which brings pretty good observability just out of the box.
 type HttpServerLazyMetricsSet struct {
 	of       string
@@ -68,46 +69,61 @@ func (m *HttpServerLazyMetricsSet) ServeStarted(req *http.Request) {
 	method := getReqMethod(req)
 	c, found := m.serveStartedCounter[method]
 	if !found {
-		c = GetCounterMetricInstance(GetServerServeStartedCountTemplate(), map[string]interface{}{"of": m.of, "protocol": "http", "statusCode": "-", "qualifier": method, "serverId": m.serverId})
+		c = GetCounterMetricInstance(
+			GetServerServeStartedCountTemplate(),
+			map[string]any{"of": m.of, "protocol": "http", "statusCode": "-", "qualifier": method, "serverId": m.serverId},
+		)
 		m.serveStartedCounter[method] = c
 	}
 	c.Inc()
 }
 
-// Invoke when server successfully served the request - pass in the httpStatusCode was returned to client. This will create+increase the appropriate success counter.
-// The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can send "2xx" to represent anything in 2xx range.
+// Invoke when server successfully served the request - pass in the httpStatusCode was returned to client. This will create+increase the appropriate success
+// counter. The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say
+// you can send "2xx" to represent anything in 2xx range.
 func (m *HttpServerLazyMetricsSet) ServeSucceeded(req *http.Request, withHttpStatusCode string) {
 	method := getReqMethod(req)
 	key := method + withHttpStatusCode
 	c, found := m.serveSuccessCounterByStatusCode[key]
 	if !found {
-		c = GetCounterMetricInstance(GetServerServeSucceededCountTemplate(), map[string]interface{}{"of": m.of, "protocol": "http", "statusCode": withHttpStatusCode, "qualifier": method, "serverId": m.serverId})
+		c = GetCounterMetricInstance(
+			GetServerServeSucceededCountTemplate(),
+			map[string]any{"of": m.of, "protocol": "http", "statusCode": withHttpStatusCode, "qualifier": method, "serverId": m.serverId},
+		)
 		m.serveSuccessCounterByStatusCode[key] = c
 	}
 	c.Inc()
 }
 
-// Invoke when server failed to server the request - pass in the httpStatusCode was returned to client. This will create+increase the appropriate failure counter
-// The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can send "5xx" to represent anything in 5xx range.
+// Invoke when server failed to server the request - pass in the httpStatusCode was returned to client. This will create+increase the appropriate failure
+// counter The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say
+// you can send "5xx" to represent anything in 5xx range.
 func (m *HttpServerLazyMetricsSet) ServeFailed(req *http.Request, withHttpStatusCode string) {
 	method := getReqMethod(req)
 	key := method + withHttpStatusCode
 	c, found := m.serveFailedCounterByStatusCode[key]
 	if !found {
-		c = GetCounterMetricInstance(GetServerServeFailedCountTemplate(), map[string]interface{}{"of": m.of, "protocol": "http", "statusCode": withHttpStatusCode, "qualifier": method, "serverId": m.serverId})
+		c = GetCounterMetricInstance(
+			GetServerServeFailedCountTemplate(),
+			map[string]any{"of": m.of, "protocol": "http", "statusCode": withHttpStatusCode, "qualifier": method, "serverId": m.serverId},
+		)
 		m.serveFailedCounterByStatusCode[key] = c
 	}
 	c.Inc()
 }
 
 // Track processing times of serving the request - pass in the httpStatusCode so we can collect segregated. This will maintain a Summary.
-// The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can send "2xx" to represent anything in 2xx range.
+// The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can
+// send "2xx" to represent anything in 2xx range.
 func (m *HttpServerLazyMetricsSet) ServeTookMillis(req *http.Request, withHttpStatusCode string, millis float64) {
 	method := getReqMethod(req)
 	key := method + withHttpStatusCode
 	c, found := m.serveProcessingTimeByStatusCode[key]
 	if !found {
-		c = GetSummaryMetricInstance(GetServerServeProcessingTimeTemplate(), map[string]interface{}{"of": m.of, "protocol": "http", "statusCode": withHttpStatusCode, "qualifier": method, "serverId": m.serverId})
+		c = GetSummaryMetricInstance(
+			GetServerServeProcessingTimeTemplate(),
+			map[string]any{"of": m.of, "protocol": "http", "statusCode": withHttpStatusCode, "qualifier": method, "serverId": m.serverId},
+		)
 		m.serveProcessingTimeByStatusCode[key] = c
 	}
 	c.Observe(millis)

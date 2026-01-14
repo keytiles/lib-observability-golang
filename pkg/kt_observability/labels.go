@@ -5,8 +5,8 @@ import (
 )
 
 // Builds the default key-value pairs due to our Logging / Monitoring standards (TBD!!!)
-func BuildGlobalLabelsMap() map[string]interface{} {
-	globalLabels := make(map[string]interface{})
+func BuildGlobalLabelsMap() map[string]any {
+	globalLabels := make(map[string]any)
 
 	serviceName := os.Getenv("SERVICE_NAME")
 	if serviceName == "" {

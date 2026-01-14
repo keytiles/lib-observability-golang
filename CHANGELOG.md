@@ -1,3 +1,19 @@
+## release 2.0.0
+
+Breaking changes:
+
+- Restructuring packages so no package aliasing needed anymore
+- Switching dependency to `github.com/keytiles/lib-logging-golang/v2` - so v2.x branch
+
+New features:
+None
+
+Other changes:
+
+- Switching to go 1.23.4
+- Added code formatter
+- Upgraded dependencies to latest available
+
 # release 1.6.1
 
 Fixes:

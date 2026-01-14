@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"time"
 
-	ktlogging "github.com/keytiles/lib-logging-golang"
-	kt_observability "github.com/keytiles/lib-observability-golang"
+	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
+	"github.com/keytiles/lib-observability-golang/v2/pkg/kt_observability"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -17,7 +17,7 @@ var (
 	globalMetricLabels prometheus.Labels
 
 	// The global key-value pairs used for each Metric - due to our Monitoring Standards
-	globalLabels map[string]interface{}
+	globalLabels map[string]any
 
 	DefaultSummaryObjectives = map[float64]float64{
 		0:    0.02,
@@ -29,7 +29,7 @@ var (
 )
 
 // Builds a list of Prometheus metric labels from the given key-value map
-func BuildMetricLabels(labels map[string]interface{}) prometheus.Labels {
+func BuildMetricLabels(labels map[string]any) prometheus.Labels {
 
 	metricLabels := prometheus.Labels{}
 
@@ -41,18 +41,19 @@ func BuildMetricLabels(labels map[string]interface{}) prometheus.Labels {
 }
 
 // returns the current GlobalLabels - key-value pairs attached to all log events
-func GetGlobalLabels() map[string]interface{} {
+func GetGlobalLabels() map[string]any {
 	return globalLabels
 }
 
 // you can change the GlobalLabels with this - the key-value pairs attached to all log events
-func SetGlobalLabels(labels map[string]interface{}) {
+func SetGlobalLabels(labels map[string]any) {
 	globalLabels = labels
 	// transform immediately to Prometheus labels
 	globalMetricLabels = BuildMetricLabels(labels)
 }
 
-// Initializing the Prometheus MetricRegistry. After this 'MetricRegistry' is available and global metric labels are set according to our Monitoring Standards. But feel free to change them via
+// Initializing the Prometheus MetricRegistry. After this 'MetricRegistry' is available and global metric labels are set according to our Monitoring Standards.
+// But feel free to change them via
 // GetGlobalLabels() and SetGlobalLabels() methods!
 func InitMetrics() {
 	// let's create Metric registry
@@ -78,7 +79,7 @@ type MetricTemplate struct {
 	counterVec *prometheus.CounterVec
 	gaugeVec   *prometheus.GaugeVec
 
-	_LOGGER *ktlogging.Logger
+	_LOGGER *kt_logging.Logger
 }
 
 func (tpl *MetricTemplate) FullyQualifiedName() string {
@@ -147,13 +148,13 @@ func GetSummaryMetricTemplate(opts prometheus.SummaryOpts, customLabelNames []st
 		//summaryOpts:        &opts,
 		customLabelNames: customLabelNames,
 		metricType:       "summary",
-		_LOGGER:          ktlogging.GetLogger("keytiles.observability.monitoring.MetricTemplate"),
+		_LOGGER:          kt_logging.GetLogger("keytiles.observability.monitoring.MetricTemplate"),
 	}
 }
 
 // Creates a concrete instance of a previously created Summary template by requiring you to provide concrete values
 // for the customLabelNames you created the template with.
-func GetSummaryMetricInstance(metricTemplate MetricTemplate, customLabels map[string]interface{}) prometheus.Observer {
+func GetSummaryMetricInstance(metricTemplate MetricTemplate, customLabels map[string]any) prometheus.Observer {
 	if metricTemplate.metricType != "summary" {
 		err := fmt.Sprintf(".GetSummaryMetricInstance() is invoked on %v but type of metric is different", metricTemplate.ToString())
 		metricTemplate._LOGGER.Error("ciritical error! app will panic - %v", err)
@@ -183,11 +184,11 @@ func GetCounterMetricTemplate(opts prometheus.CounterOpts, customLabelNames []st
 		counterVec:         prometheus.NewCounterVec(opts, customLabelNames),
 		customLabelNames:   customLabelNames,
 		metricType:         "counter",
-		_LOGGER:            ktlogging.GetLogger("keytiles.observability.monitoring.MetricTemplate"),
+		_LOGGER:            kt_logging.GetLogger("keytiles.observability.monitoring.MetricTemplate"),
 	}
 }
 
-func GetCounterMetricInstance(metricTemplate MetricTemplate, customLabels map[string]interface{}) prometheus.Counter {
+func GetCounterMetricInstance(metricTemplate MetricTemplate, customLabels map[string]any) prometheus.Counter {
 	if metricTemplate.metricType != "counter" {
 		err := fmt.Sprintf(".GetCounterMetricInstance() is invoked on %v but type of metric is different", metricTemplate.ToString())
 		metricTemplate._LOGGER.Error("ciritical error! app will panic - %v", err)
@@ -211,11 +212,11 @@ func GetGaugeMetricTemplate(opts prometheus.GaugeOpts, customLabelNames []string
 		gaugeVec:           prometheus.NewGaugeVec(opts, customLabelNames),
 		customLabelNames:   customLabelNames,
 		metricType:         "gauge",
-		_LOGGER:            ktlogging.GetLogger("keytiles.observability.monitoring.MetricTemplate"),
+		_LOGGER:            kt_logging.GetLogger("keytiles.observability.monitoring.MetricTemplate"),
 	}
 }
 
-func GetGaugeMetricInstance(metricTemplate MetricTemplate, customLabels map[string]interface{}) prometheus.Gauge {
+func GetGaugeMetricInstance(metricTemplate MetricTemplate, customLabels map[string]any) prometheus.Gauge {
 	if metricTemplate.metricType != "gauge" {
 		err := fmt.Sprintf(".GetGaugeMetricInstance() is invoked on %v but type of metric is different", metricTemplate.ToString())
 		metricTemplate._LOGGER.Error("ciritical error! app will panic - %v", err)
