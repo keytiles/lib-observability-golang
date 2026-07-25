@@ -148,7 +148,7 @@ func GetSummaryMetricTemplate(opts prometheus.SummaryOpts, customLabelNames []st
 		//summaryOpts:        &opts,
 		customLabelNames: customLabelNames,
 		metricType:       "summary",
-		_LOGGER:          kt_logging.GetLogger("keytiles.observability.monitoring.MetricTemplate"),
+		_LOGGER:          kt_logging.GetLogger(PACKAGE_NAME + ".MetricTemplate"),
 	}
 }
 
@@ -184,7 +184,7 @@ func GetCounterMetricTemplate(opts prometheus.CounterOpts, customLabelNames []st
 		counterVec:         prometheus.NewCounterVec(opts, customLabelNames),
 		customLabelNames:   customLabelNames,
 		metricType:         "counter",
-		_LOGGER:            kt_logging.GetLogger("keytiles.observability.monitoring.MetricTemplate"),
+		_LOGGER:            kt_logging.GetLogger(PACKAGE_NAME + ".MetricTemplate"),
 	}
 }
 
@@ -212,7 +212,7 @@ func GetGaugeMetricTemplate(opts prometheus.GaugeOpts, customLabelNames []string
 		gaugeVec:           prometheus.NewGaugeVec(opts, customLabelNames),
 		customLabelNames:   customLabelNames,
 		metricType:         "gauge",
-		_LOGGER:            kt_logging.GetLogger("keytiles.observability.monitoring.MetricTemplate"),
+		_LOGGER:            kt_logging.GetLogger(PACKAGE_NAME + ".MetricTemplate"),
 	}
 }
 
