@@ -2,7 +2,15 @@
 
 Common code to add Metrics, Logs whatever - to Go services.
 
-It's pulling in [lib-logging-golang](https://github.com/keytiles/lib-logging-golang) autmatically. And also using the [prometheus library](https://github.com/prometheus/client_golang) to spin up the Prometheus http metrics endpoint.
+It's pulling in [lib-logging-golang](https://github.com/keytiles/lib-logging-golang) automatically. And also using the [prometheus library](https://github.com/prometheus/client_golang) to spin up the Prometheus http metrics endpoint.
+
+# Documentation
+
+More detail lives under [`docs/`](docs/):
+
+- [Architecture-v2.0.md](docs/Architecture-v2.0.md) — how the library fits together
+- [LoggingObservability-v2.0.md](docs/LoggingObservability-v2.0.md) — logging labels helpers
+- [MetricsObservability-v2.0.md](docs/MetricsObservability-v2.0.md) — Prometheus metrics templates and HTTP helpers
 
 # What does it bring?
 
@@ -12,7 +20,7 @@ Most of all. Crossing over both logging and monitoring.
 
 ### Labels
 
-Labels are very important part of both. Theye are the key-value pairs which are decorating log events and also metric instances. And central systems provide the way for filtering/grouping based on labels.
+Labels are a very important part of both. They are the key-value pairs which are decorating log events and also metric instances. And central systems provide the way for filtering/grouping based on labels.
 
 When you are writing a service there are certain labels which makes sense to be present in all log events and all metric instances. Therefore these can be considered as **global labels**. For example "service name" or "host" or "service version". With the lib - as you will see below in the example - you can simply build these and then just register them into both: logs and metrics.
 
@@ -30,12 +38,12 @@ Therefore the library comes with a concept distinguishing
 
 Every Metric instance you create should be derived from one of the Metric templates! What is a template? Well not much. It has
  * A metric type, e.g. Counter or Summary
- * The fixed name of this metric, e.-g. "execCount"
+ * The fixed name of this metric, e.g. "execCount"
  * A (pre)fixed set of labels. When one creates a concrete instance of this template he 
     * must provide value for ALL of those pre-defined labels (empty value is OK)
     * can not add more labels
 
-The library pre-defines a few Metrics Templates (which are typically enough in any application - you find them in [metric_templates.go](monitoring/metrics_templates.go)), these are:
+The library pre-defines a few Metrics Templates (which are typically enough in any application - you find them in [metrics_templates.go](pkg/kt_observability_monitoring/metrics_templates.go)), these are:
  * ExecCount - a Counter "of" something ("of" is a label)
  * ErrorCount - a Counter "of" something ("of" is a label) which represents a failure/error. Normally you would like to see 0 here right? And build alerting around these.
  * WarningCount - a Counter "of" something ("of" is a label) which represents a warning. More relaxed compared to errors but still can be important to keep an eye on.
@@ -48,11 +56,13 @@ Once the template is created it is easy to create concrete instances of that tem
 
 Just take a quick look into the attached example application!
 
-See [test_application.go](tests/integration_tests/test_application.go) !
+See [examples/simple-service](examples/simple-service/) !
 
 You can even run it with
 
 ```
-go run test_application.go
+cd examples/simple-service
+go run .
 ```
 
+Then hit `http://localhost:8080/api/v1/ping` (or `ping-fail`) and scrape metrics at `http://localhost:9008/metrics`.
