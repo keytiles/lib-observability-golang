@@ -6,7 +6,7 @@ We will mark these with Git Tags
 
 # Changes in releases
 
-## release 2.0.1
+## release 2.1.0
 
 Fixes / Improvements:
 - Applying Keytiles lib standards

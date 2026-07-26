@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/keytiles/lib-errorhandling-golang/v2/pkg/kt_errors"
 	"github.com/keytiles/lib-observability-golang/v2/pkg/kt_observability_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -307,6 +308,174 @@ func TestGetCounterMetricInstance_ExtraLabels_DoesNotPanic(t *testing.T) {
 		t.Fatal("expected non-nil counter (discarded/soft-fail is ok)")
 	}
 	counter.Inc()
+}
+
+// Wrong template type into deprecated GetCounterMetricInstance must soft-fail (no panic; discarded counter usable).
+func TestGetCounterMetricInstance_WrongTemplateType_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN — a Summary template passed where a Counter is required
+	ensureMetricsInitialized(t)
+	summaryTpl := kt_observability_monitoring.GetSummaryMetricTemplate(
+		prometheus.SummaryOpts{Name: "wrongTypeForCounterDeprecated", Help: "summary used as counter (misuse)"},
+		[]string{"of"},
+	)
+	summaryTpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	var counter prometheus.Counter
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic on wrong template type, got: %v", r)
+			}
+		}()
+		counter = kt_observability_monitoring.GetCounterMetricInstance(summaryTpl, map[string]any{"of": "work"})
+	}()
+
+	// ---- THEN — discarded / soft-fail sink is ok; must remain usable
+	if counter == nil {
+		t.Fatal("expected non-nil counter (discarded/soft-fail is ok)")
+	}
+	counter.Inc()
+}
+
+// Wrong template type into GetCounterMetricInstanceOrFault must return a ValidationFault (wrong datatype); counter nil.
+func TestGetCounterMetricInstanceOrFault_WrongTemplateType_ReturnsFault(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	summaryTpl := kt_observability_monitoring.GetSummaryMetricTemplate(
+		prometheus.SummaryOpts{Name: "wrongTypeForCounterOrFault", Help: "summary used as counter (misuse)"},
+		[]string{"of"},
+	)
+	summaryTpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	counter, fault := kt_observability_monitoring.GetCounterMetricInstanceOrFault(summaryTpl, map[string]any{"of": "work"})
+
+	// ---- THEN
+	if counter != nil {
+		t.Fatal("expected nil counter when OrFault reports misuse")
+	}
+	if fault == nil {
+		t.Fatal("expected non-nil Fault for wrong template type")
+	}
+	if fault.GetKind() != kt_errors.ValidationFault {
+		t.Errorf("expected kind %q, got %q", kt_errors.ValidationFault, fault.GetKind())
+	}
+	if !fault.HasErrorCode(kt_errors.VALIDATION_ERRCODE_WRONG_DATATYPE) {
+		t.Errorf("expected error code %q, got codes %v", kt_errors.VALIDATION_ERRCODE_WRONG_DATATYPE, fault.GetErrorCodes())
+	}
+}
+
+// Wrong template type into deprecated GetSummaryMetricInstance must soft-fail (no panic; discarded observer usable).
+func TestGetSummaryMetricInstance_WrongTemplateType_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN — a Counter template passed where a Summary is required
+	ensureMetricsInitialized(t)
+	counterTpl := kt_observability_monitoring.GetCounterMetricTemplate(
+		prometheus.CounterOpts{Name: "wrongTypeForSummaryDeprecated", Help: "counter used as summary (misuse)"},
+		[]string{"of"},
+	)
+	counterTpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	var observer prometheus.Observer
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic on wrong template type, got: %v", r)
+			}
+		}()
+		observer = kt_observability_monitoring.GetSummaryMetricInstance(counterTpl, map[string]any{"of": "work"})
+	}()
+
+	// ---- THEN
+	if observer == nil {
+		t.Fatal("expected non-nil observer (discarded/soft-fail is ok)")
+	}
+	observer.Observe(1)
+}
+
+// Wrong template type into GetSummaryMetricInstanceOrFault must return a ValidationFault (wrong datatype); observer nil.
+func TestGetSummaryMetricInstanceOrFault_WrongTemplateType_ReturnsFault(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	counterTpl := kt_observability_monitoring.GetCounterMetricTemplate(
+		prometheus.CounterOpts{Name: "wrongTypeForSummaryOrFault", Help: "counter used as summary (misuse)"},
+		[]string{"of"},
+	)
+	counterTpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	observer, fault := kt_observability_monitoring.GetSummaryMetricInstanceOrFault(counterTpl, map[string]any{"of": "work"})
+
+	// ---- THEN
+	if observer != nil {
+		t.Fatal("expected nil observer when OrFault reports misuse")
+	}
+	if fault == nil {
+		t.Fatal("expected non-nil Fault for wrong template type")
+	}
+	if fault.GetKind() != kt_errors.ValidationFault {
+		t.Errorf("expected kind %q, got %q", kt_errors.ValidationFault, fault.GetKind())
+	}
+	if !fault.HasErrorCode(kt_errors.VALIDATION_ERRCODE_WRONG_DATATYPE) {
+		t.Errorf("expected error code %q, got codes %v", kt_errors.VALIDATION_ERRCODE_WRONG_DATATYPE, fault.GetErrorCodes())
+	}
+}
+
+// Wrong template type into deprecated GetGaugeMetricInstance must soft-fail (no panic; discarded gauge usable).
+func TestGetGaugeMetricInstance_WrongTemplateType_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN — a Counter template passed where a Gauge is required
+	ensureMetricsInitialized(t)
+	counterTpl := kt_observability_monitoring.GetCounterMetricTemplate(
+		prometheus.CounterOpts{Name: "wrongTypeForGaugeDeprecated", Help: "counter used as gauge (misuse)"},
+		[]string{"of"},
+	)
+	counterTpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	var gauge prometheus.Gauge
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic on wrong template type, got: %v", r)
+			}
+		}()
+		gauge = kt_observability_monitoring.GetGaugeMetricInstance(counterTpl, map[string]any{"of": "work"})
+	}()
+
+	// ---- THEN
+	if gauge == nil {
+		t.Fatal("expected non-nil gauge (discarded/soft-fail is ok)")
+	}
+	gauge.Set(1)
+}
+
+// Wrong template type into GetGaugeMetricInstanceOrFault must return a ValidationFault (wrong datatype); gauge nil.
+func TestGetGaugeMetricInstanceOrFault_WrongTemplateType_ReturnsFault(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	counterTpl := kt_observability_monitoring.GetCounterMetricTemplate(
+		prometheus.CounterOpts{Name: "wrongTypeForGaugeOrFault", Help: "counter used as gauge (misuse)"},
+		[]string{"of"},
+	)
+	counterTpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	gauge, fault := kt_observability_monitoring.GetGaugeMetricInstanceOrFault(counterTpl, map[string]any{"of": "work"})
+
+	// ---- THEN
+	if gauge != nil {
+		t.Fatal("expected nil gauge when OrFault reports misuse")
+	}
+	if fault == nil {
+		t.Fatal("expected non-nil Fault for wrong template type")
+	}
+	if fault.GetKind() != kt_errors.ValidationFault {
+		t.Errorf("expected kind %q, got %q", kt_errors.ValidationFault, fault.GetKind())
+	}
+	if !fault.HasErrorCode(kt_errors.VALIDATION_ERRCODE_WRONG_DATATYPE) {
+		t.Errorf("expected error code %q, got codes %v", kt_errors.VALIDATION_ERRCODE_WRONG_DATATYPE, fault.GetErrorCodes())
+	}
 }
 
 // Zero-value MetricTemplate must not nil-deref when Register tries to Warn (unknown metric type path).

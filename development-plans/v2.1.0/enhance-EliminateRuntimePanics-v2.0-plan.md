@@ -1,15 +1,15 @@
 # Plan: Eliminate runtime panics
 
 - Created / last modified: 2026-07-26
-- Target release folder: `development-plans/v2.0.1/`
-- Status: Group 2 complete — Group 1.1 Counter `OrFault` API agreed (implement next); Summary/Gauge + 1.2 after; docs/CHANGELOG wrap-up after
+- Target release folder: `development-plans/v2.1.0/`
+- Status: Group 2 complete; Group 1.1 `OrFault` (Counter/Summary/Gauge) implemented — next 1.2 empty `of`; then Metrics-v2.1 docs / CHANGELOG wrap-up
 
 ## Documentation references
 
 Companion docs this change will evolve (after decisions):
 
 - [docs/Architecture-v2.0.md](../../docs/Architecture-v2.0.md)
-- [docs/MetricsObservability-v2.0.md](../../docs/MetricsObservability-v2.0.md)
+- [docs/MetricsObservability-v2.1.md](../../docs/MetricsObservability-v2.1.md) (target; v2.0 remains the prior baseline)
 - [docs/LoggingObservability-v2.0.md](../../docs/LoggingObservability-v2.0.md)
 
 Related agent rules:
@@ -41,27 +41,22 @@ Findings are split into two groups:
 
 These are intentional fail-fast checks written by us.
 
-#### 1.1 Wrong metric template type in getters — **API agreed (Counter first)**
+#### 1.1 Wrong metric template type in getters — **fixed (increments 9a–9c)**
 
 - Files: [`monitoring.go`](../../pkg/kt_observability_monitoring/monitoring.go)
 - Trigger: caller passes a Counter template into `GetSummaryMetricInstance` (or similar mismatch)
 - Likelihood: low (API misuse)
-- **Decision (locked 2026-07-26):** non-breaking deprecate + `OrFault` preferred API using [`kt_errors.Fault`](https://github.com/keytiles/lib-errorhandling-golang) (see Decisions / increment 9a).
+- **Decision (locked 2026-07-26):** non-breaking deprecate + `OrFault` preferred API using [`kt_errors.Fault`](https://github.com/keytiles/lib-errorhandling-golang).
 
-Example (still panics today for Summary/Gauge; Counter stub `GetCounterMetricInstanceOrFault` added):
+Preferred:
 
 ```go
-func GetCounterMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels map[string]any) (prometheus.Counter, kt_errors.Fault)
-
-// Deprecated path still panics on wrong type until increment 9a lands
-func GetCounterMetricInstance(...) prometheus.Counter {
-	if metricTemplate.metricType != "counter" {
-		panic(...)
-	}
-}
+func GetCounterMetricInstanceOrFault(...) (prometheus.Counter, kt_errors.Fault)
+func GetSummaryMetricInstanceOrFault(...) (prometheus.Observer, kt_errors.Fault)
+func GetGaugeMetricInstanceOrFault(...) (prometheus.Gauge, kt_errors.Fault)
 ```
 
-Same panic pattern today for Summary and Gauge getters (follow Counter once green).
+Deprecated wrappers call `OrFault`; on Fault → Warn + discarded metric (no panic).
 
 #### 1.2 Empty `of` when creating HTTP lazy metric sets
 
@@ -266,24 +261,23 @@ No intentional API redesign; soft-fail / harden so a running service does not di
 
 ### Group 1 — explicit `panic()` (API agreed for getters)
 
-9a. **Increment — 1.1 Counter `OrFault`** — planned (next)  
-   - Add dep `lib-errorhandling-golang/v2`; implement stub `GetCounterMetricInstanceOrFault`.  
-   - Red: wrong-type into `GetCounterMetricInstance` must not panic (discarded); `OrFault` returns non-nil `Fault`, nil counter.  
-   - Green: `OrFault` owns logic; deprecated getter wraps + Warn + `discardedCounter`; remove panic.  
-   - Existing soft-fail tests (nil/missing/extra labels) stay green via the wrapper.
-9b. **Increment — 1.1 Summary `OrFault`** — planned (after 9a)  
+9a. **Increment — 1.1 Counter `OrFault`** — implemented  
+   - Dep `lib-errorhandling-golang/v2`; `GetCounterMetricInstanceOrFault` owns logic.  
+   - Wrong type → `ValidationFault` + `VALIDATION_ERRCODE_WRONG_DATATYPE`; nil vec → `IllegalStateFault`; label mismatch → `ValidationFault` + cause.  
+   - Deprecated `GetCounterMetricInstance` wraps + Warn + `discardedCounter`.
+9b. **Increment — 1.1 Summary `OrFault`** — implemented  
    - Same pattern: `GetSummaryMetricInstanceOrFault` + deprecate `GetSummaryMetricInstance`.
-9c. **Increment — 1.1 Gauge `OrFault`** — planned (after 9b)  
+9c. **Increment — 1.1 Gauge `OrFault`** — implemented  
    - Same pattern: `GetGaugeMetricInstanceOrFault` + deprecate `GetGaugeMetricInstance`.
-9d. **Increment — 1.2 Empty `of` in `NewHttp*LazyMetricsSet`** — planned (after 9a–9c)  
+9d. **Increment — 1.2 Empty `of` in `NewHttp*LazyMetricsSet`** — planned (next)  
    - Soft-fail / Fault API shape TBD in that increment (can mirror OrFault or constructor soft-fail).
 
 ### Wrap-up
 
 10. **Update companion docs + CHANGELOG** for the chosen soft-fail / API behavior — partial  
     - Metrics + Logging docs updated for Group 2 soft-fail (2026-07-26).  
-    - Architecture + CHANGELOG still planned after Group 1 / when API behavior settles.  
-11. **Final verify** — partial: `go test` on logging+monitoring packages green; `go test -race` skipped on this Windows env (no CGO/gcc). Re-run `-race` where gcc is available.
+    - Craft [MetricsObservability-v2.1.md](../../docs/MetricsObservability-v2.1.md) + CHANGELOG `2.1.0` notes after Group 1 (OrFault + 1.2) settles.  
+11. **Final verify** — partial: `go test` on logging+monitoring packages green (incl. Group 1.1 wrong-type); `go test -race` skipped on this Windows env (no CGO/gcc). Re-run `-race` where gcc is available.
 
 ## How to verify (per increment)
 
