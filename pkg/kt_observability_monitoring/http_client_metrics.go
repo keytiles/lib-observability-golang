@@ -1,6 +1,11 @@
 package kt_observability_monitoring
 
 import (
+	"sync"
+
+	"github.com/keytiles/lib-errorhandling-golang/v2/pkg/kt_errors"
+	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
+	"github.com/keytiles/lib-utils-golang/v2/pkg/kt_utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -11,6 +16,8 @@ import (
 // Request-Response loop times AND you can do it
 // per each HttpSatatus codes if you want which brings pretty good observability just out of the box.
 type HttpClientLazyMetricsSet struct {
+	mu sync.Mutex
+
 	of        string
 	qualifier any
 	clientId  string
@@ -24,12 +31,18 @@ type HttpClientLazyMetricsSet struct {
 
 type HttpClientLazyMetricsSetOpt func(m *HttpClientLazyMetricsSet)
 
-// Creates a new metrics set you can use in your HTTP clients to create observability of invoking HTTP endpoints.
-//
-// Pass in "of" as the best name (meaningful) of the endpoint client is invoking! And feel free to use the optional setup too!
-func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt) *HttpClientLazyMetricsSet {
+// Preferred constructor. Returns a Fault when 'of' is empty (mandatory endpoint name).
+// On success the Fault is nil.
+func NewHttpClientLazyMetricsSetOrFault(of string, opts ...HttpClientLazyMetricsSetOpt) (*HttpClientLazyMetricsSet, kt_errors.Fault) {
+	methodName := "NewHttpClientLazyMetricsSetOrFault()"
+
+	// 'of' is the endpoint name and must be provided by the caller.
 	if of == "" {
-		panic("Can not create HttpClientLazyMetricsSet with empty 'of' parameter!")
+		return nil, kt_errors.NewFaultBuilder(kt_errors.ValidationFault).
+			WithErrorCodes(kt_errors.VALIDATION_ERRCODE_MISSING_MANDATORY).
+			WithMessageTemplate("empty 'of' parameter is not allowed").
+			WithSource(PACKAGE_NAME, methodName).
+			Build()
 	}
 
 	metrics := HttpClientLazyMetricsSet{
@@ -45,7 +58,24 @@ func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt)
 		o(&metrics)
 	}
 
-	return &metrics
+	return &metrics, nil
+}
+
+// Creates a new metrics set you can use in your HTTP clients to create observability of invoking HTTP endpoints.
+//
+// Pass in "of" as the best name (meaningful) of the endpoint client is invoking! And feel free to use the optional setup too!
+//
+// Deprecated: use NewHttpClientLazyMetricsSetOrFault. On empty 'of' soft-fails (Warn + placeholder of "-"); does not panic.
+func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt) *HttpClientLazyMetricsSet {
+	methodName := "NewHttpClientLazyMetricsSet()"
+
+	metrics, fault := NewHttpClientLazyMetricsSetOrFault(of, opts...)
+	if fault != nil {
+		kt_logging.GetLogger(PACKAGE_NAME + ".HttpClientLazyMetricsSet").
+			Warn("%v: soft-fail empty 'of' - using placeholder '-' - %s", methodName, kt_utils.VarPrinter{TheVar: fault})
+		metrics, _ = NewHttpClientLazyMetricsSetOrFault("-", opts...)
+	}
+	return metrics
 }
 
 // Assigns a "qualifier" to all Metric instances in your set of your choice. One example of good qualifiers could be the httpMethod like GET, POST, PUT etc to
@@ -79,6 +109,9 @@ func WithClientId(id string) HttpClientLazyMetricsSetOpt {
 
 // Invoke when client sent the request - will create+increase counter
 func (m *HttpClientLazyMetricsSet) RequestSent() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.reqSentCounter == nil {
 		c := GetCounterMetricInstance(
 			GetClientRequestSentCountTemplate(),
@@ -93,6 +126,9 @@ func (m *HttpClientLazyMetricsSet) RequestSent() {
 // The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can
 // send "2xx" to represent anything in 2xx range.
 func (m *HttpClientLazyMetricsSet) RequestSucceeded(withHttpStatusCode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	c, found := m.reqSuccessCounterByStatusCode[withHttpStatusCode]
 	if !found {
 		c = GetCounterMetricInstance(
@@ -108,6 +144,9 @@ func (m *HttpClientLazyMetricsSet) RequestSucceeded(withHttpStatusCode string) {
 // The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can
 // send "5xx" to represent anything in 5xx range.
 func (m *HttpClientLazyMetricsSet) RequestFailed(withHttpStatusCode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	c, found := m.reqFailedCounterByStatusCode[withHttpStatusCode]
 	if !found {
 		c = GetCounterMetricInstance(
@@ -123,6 +162,9 @@ func (m *HttpClientLazyMetricsSet) RequestFailed(withHttpStatusCode string) {
 // The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can
 // send "2xx" to represent anything in 2xx range.
 func (m *HttpClientLazyMetricsSet) RequestTookMillis(httpStatusCode string, millis float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	c, found := m.reqProcessingTimeByStatusCode[httpStatusCode]
 	if !found {
 		c = GetSummaryMetricInstance(

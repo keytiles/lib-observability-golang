@@ -20,38 +20,21 @@ func BuildLogLabels(labels map[string]any) []kt_logging.Label {
 		if vt == nil {
 			label = kt_logging.StringLabel(key, "<null>")
 		} else {
-			valueParamType := vt.Kind()
-			switch valueParamType {
-			case reflect.Int:
-				label = kt_logging.FloatLabel(key, float64(value.(int)))
-			case reflect.Int8:
-				label = kt_logging.FloatLabel(key, float64(value.(int8)))
-			case reflect.Int16:
-				label = kt_logging.FloatLabel(key, float64(value.(int16)))
-			case reflect.Int32:
-				label = kt_logging.FloatLabel(key, float64(value.(int32)))
-			case reflect.Int64:
-				label = kt_logging.FloatLabel(key, float64(value.(int64)))
-			case reflect.Uint:
-				label = kt_logging.FloatLabel(key, float64(value.(uint)))
-			case reflect.Uint8:
-				label = kt_logging.FloatLabel(key, float64(value.(uint8)))
-			case reflect.Uint16:
-				label = kt_logging.FloatLabel(key, float64(value.(uint16)))
-			case reflect.Uint32:
-				label = kt_logging.FloatLabel(key, float64(value.(uint32)))
-			case reflect.Uint64:
-				label = kt_logging.FloatLabel(key, float64(value.(uint64)))
-			case reflect.Float32:
-				label = kt_logging.FloatLabel(key, float64(value.(float32)))
-			case reflect.Float64:
-				label = kt_logging.FloatLabel(key, value.(float64))
+			// Use reflect.Value so defined types (e.g. type MyInt int) convert without panicking.
+			rv := reflect.ValueOf(value)
+			switch rv.Kind() {
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				label = kt_logging.FloatLabel(key, float64(rv.Int()))
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				label = kt_logging.FloatLabel(key, float64(rv.Uint()))
+			case reflect.Float32, reflect.Float64:
+				label = kt_logging.FloatLabel(key, rv.Float())
 			case reflect.String:
-				label = kt_logging.StringLabel(key, value.(string))
+				label = kt_logging.StringLabel(key, rv.String())
 			case reflect.Bool:
-				label = kt_logging.BoolLabel(key, value.(bool))
+				label = kt_logging.BoolLabel(key, rv.Bool())
 			default:
-				label = kt_logging.StringLabel(key, fmt.Sprintf("<'%v' value not supported>", valueParamType))
+				label = kt_logging.StringLabel(key, fmt.Sprintf("<'%v' value not supported>", rv.Kind()))
 			}
 		}
 		logLabels = append(logLabels, label)

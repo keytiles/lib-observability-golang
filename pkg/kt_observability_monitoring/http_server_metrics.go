@@ -2,7 +2,11 @@ package kt_observability_monitoring
 
 import (
 	"net/http"
+	"sync"
 
+	"github.com/keytiles/lib-errorhandling-golang/v2/pkg/kt_errors"
+	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
+	"github.com/keytiles/lib-utils-golang/v2/pkg/kt_utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -13,6 +17,8 @@ import (
 // Request-Response loop times AND you can do it
 // per each HttpSatatus codes/ Methods which brings pretty good observability just out of the box.
 type HttpServerLazyMetricsSet struct {
+	mu sync.Mutex
+
 	of       string
 	serverId string
 
@@ -24,12 +30,18 @@ type HttpServerLazyMetricsSet struct {
 
 type HttpServerLazyMetricsSetOpt func(m *HttpServerLazyMetricsSet)
 
-// Creates a new metrics set you can use in your HTTP servers to create observability of serving HTTP endpoints.
-//
-// Pass in "of" as the best name (meaningful) of the HTTP server/handler is invoking! And feel free to use the optional setup too!
-func NewHttpServerLazyMetricsSet(of string, opts ...HttpServerLazyMetricsSetOpt) *HttpServerLazyMetricsSet {
+// Preferred constructor. Returns a Fault when 'of' is empty (mandatory endpoint / handler name).
+// On success the Fault is nil.
+func NewHttpServerLazyMetricsSetOrFault(of string, opts ...HttpServerLazyMetricsSetOpt) (*HttpServerLazyMetricsSet, kt_errors.Fault) {
+	methodName := "NewHttpServerLazyMetricsSetOrFault()"
+
+	// 'of' is the endpoint / handler name and must be provided by the caller.
 	if of == "" {
-		panic("Can not create HttpServerLazyMetricsSet with empty 'of' parameter!")
+		return nil, kt_errors.NewFaultBuilder(kt_errors.ValidationFault).
+			WithErrorCodes(kt_errors.VALIDATION_ERRCODE_MISSING_MANDATORY).
+			WithMessageTemplate("empty 'of' parameter is not allowed").
+			WithSource(PACKAGE_NAME, methodName).
+			Build()
 	}
 
 	metrics := HttpServerLazyMetricsSet{
@@ -45,7 +57,24 @@ func NewHttpServerLazyMetricsSet(of string, opts ...HttpServerLazyMetricsSetOpt)
 		o(&metrics)
 	}
 
-	return &metrics
+	return &metrics, nil
+}
+
+// Creates a new metrics set you can use in your HTTP servers to create observability of serving HTTP endpoints.
+//
+// Pass in "of" as the best name (meaningful) of the HTTP server/handler is invoking! And feel free to use the optional setup too!
+//
+// Deprecated: use NewHttpServerLazyMetricsSetOrFault. On empty 'of' soft-fails (Warn + placeholder of "-"); does not panic.
+func NewHttpServerLazyMetricsSet(of string, opts ...HttpServerLazyMetricsSetOpt) *HttpServerLazyMetricsSet {
+	methodName := "NewHttpServerLazyMetricsSet()"
+
+	metrics, fault := NewHttpServerLazyMetricsSetOrFault(of, opts...)
+	if fault != nil {
+		kt_logging.GetLogger(PACKAGE_NAME + ".HttpServerLazyMetricsSet").
+			Warn("%v: soft-fail empty 'of' - using placeholder '-' - %s", methodName, kt_utils.VarPrinter{TheVar: fault})
+		metrics, _ = NewHttpServerLazyMetricsSetOrFault("-", opts...)
+	}
+	return metrics
 }
 
 // Assigns a "serverId" to all Metric instances in your set. This is very useful if a specific client actually can have multiple instances for whatever reason.
@@ -66,6 +95,9 @@ func getReqMethod(req *http.Request) string {
 
 // Invoke when server started to process the request - will create+increase counter
 func (m *HttpServerLazyMetricsSet) ServeStarted(req *http.Request) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	method := getReqMethod(req)
 	c, found := m.serveStartedCounter[method]
 	if !found {
@@ -82,6 +114,9 @@ func (m *HttpServerLazyMetricsSet) ServeStarted(req *http.Request) {
 // counter. The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say
 // you can send "2xx" to represent anything in 2xx range.
 func (m *HttpServerLazyMetricsSet) ServeSucceeded(req *http.Request, withHttpStatusCode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	method := getReqMethod(req)
 	key := method + withHttpStatusCode
 	c, found := m.serveSuccessCounterByStatusCode[key]
@@ -99,6 +134,9 @@ func (m *HttpServerLazyMetricsSet) ServeSucceeded(req *http.Request, withHttpSta
 // counter The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say
 // you can send "5xx" to represent anything in 5xx range.
 func (m *HttpServerLazyMetricsSet) ServeFailed(req *http.Request, withHttpStatusCode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	method := getReqMethod(req)
 	key := method + withHttpStatusCode
 	c, found := m.serveFailedCounterByStatusCode[key]
@@ -116,6 +154,9 @@ func (m *HttpServerLazyMetricsSet) ServeFailed(req *http.Request, withHttpStatus
 // The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can
 // send "2xx" to represent anything in 2xx range.
 func (m *HttpServerLazyMetricsSet) ServeTookMillis(req *http.Request, withHttpStatusCode string, millis float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	method := getReqMethod(req)
 	key := method + withHttpStatusCode
 	c, found := m.serveProcessingTimeByStatusCode[key]

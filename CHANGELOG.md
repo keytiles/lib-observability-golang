@@ -1,3 +1,29 @@
+# Versioning policy
+
+We are following [Semantic versioning](https://semver.org/) in this library
+
+We will mark these with Git Tags
+
+# Changes in releases
+
+## release 2.1.0
+
+New features:
+- Metrics: preferred `*OrFault` APIs returning `kt_errors.Fault` (no process panic on misuse)
+  - `GetCounterMetricInstanceOrFault` / `GetSummaryMetricInstanceOrFault` / `GetGaugeMetricInstanceOrFault`
+  - `NewHttpClientLazyMetricsSetOrFault` / `NewHttpServerLazyMetricsSetOrFault`
+- Dependency: `github.com/keytiles/lib-errorhandling-golang/v2`
+
+Fixes / Improvements:
+- Applying Keytiles lib standards
+  - Introducing constant `LIB_NAME`
+  - Based on the above introducing constants `PACKAGE_NAME` in all packages - used as a prefix for kt_errors.Fault sources and Logging
+- Metrics / logging soft-fail hardening so the library does not crash the process on common misuse (nil label maps, label mismatch → discarded metric, const/variable label clash, concurrent HTTP lazy sets, `Register(nil)`, wrong template type, empty HTTP lazy-set `of`)
+- Deprecated `Get*MetricInstance` and `NewHttp*LazyMetricsSet` soft-fail (Warn + discarded metric / placeholder `of="-"`) instead of panicking
+
+Upgrades:
+- Golang 1.26.0 is used from now
+
 ## release 2.0.0
 
 Breaking changes:
@@ -14,13 +40,13 @@ Other changes:
 - Added code formatter
 - Upgraded dependencies to latest available
 
-# release 1.6.1
+## release 1.6.1
 
 Fixes:
 
 - Logger names were updated to match common pattern "keytiles.<libname>.<package...>.<object>"
 
-# release 1.6.0
+## release 1.6.0
 
 New featues:
 
@@ -30,37 +56,37 @@ Fixes:
 
 - Improved a bit some comments / naming / method names in HttpClientLazyMetricsSet to be in sync with newly introduced HttpServerLazyMetricsSet
 
-# release 1.5.2
+## release 1.5.2
 
 Fixes:
 
 - Observability: HttpClientLazyMetricsSet from now works with httpStatusCodes as strings and not int. (not breaking change as feature is totally new)
 
-# release 1.5.1
+## release 1.5.1
 
 Fixes:
 
 - Observability: renaming method NewHttpClientLazyMetrics -> NewHttpClientLazyMetricsSet (not breaking change as feature is totally new)
 
-# release 1.5.0
+## release 1.5.0
 
 New features:
 
 - Observability: added HttpClientLazyMetricsSet for easier and full standard Metrics for HTTP/gRPC/whatever clients
 
-# release 1.4.1
+## release 1.4.1
 
 Fixes:
 
 - Observability: forgot about request success counter in sync client metrics
 
-# release 1.4.0
+## release 1.4.0
 
 New features:
 
 - Observability: added some useful generic metrics templates you can use in any synchronous clients - e.g. http or gRPC clients.
 
-# release 1.3.0
+## release 1.3.0
 
 New features:
 
@@ -73,7 +99,7 @@ Bug fixes:
 
 Breaking changes:
 
-# release 1.2.1
+## release 1.2.1
 
 New features:
 
@@ -83,7 +109,7 @@ Bug fixes:
 
 Breaking changes:
 
-# release 1.2.0
+## release 1.2.0
 
 New features:
 
@@ -98,7 +124,7 @@ Bug fixes:
 
 Breaking changes:
 
-# release 1.1.0
+## release 1.1.0
 
 New features:
 
@@ -108,14 +134,14 @@ Bug fixes:
 
 Breaking changes:
 
-# release 1.0.2
+## release 1.0.2
 
 Initial release
 
-# release 1.0.1
+## release 1.0.1
 
 Tried to fix issues but failed - retracted
 
-# release 1.0.0
+## release 1.0.0
 
 Original release but wrong repo name - retracted

@@ -12,9 +12,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
+	"github.com/keytiles/lib-observability-golang/v2/examples/simple-service/http_handler"
 	"github.com/keytiles/lib-observability-golang/v2/pkg/kt_observability_logging"
 	"github.com/keytiles/lib-observability-golang/v2/pkg/kt_observability_monitoring"
-	http_handler "github.com/keytiles/lib-observability-golang/v2/tests/integration_tests/http"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -47,7 +47,7 @@ func main() {
 	LOG.Info("starting up application...")
 
 	// let's establish the prometheus http endpoint
-	exposeMetrics(LOG, globalLabels)
+	exposeMetrics(LOG)
 
 	// create simple HTTP server
 	httpHost := "0.0.0.0"
@@ -122,10 +122,7 @@ func main() {
 
 }
 
-func exposeMetrics(LOG *kt_logging.Logger, globalLabels map[string]any) {
-
-	kt_observability_monitoring.InitMetrics()
-	kt_observability_monitoring.SetGlobalLabels(globalLabels)
+func exposeMetrics(LOG *kt_logging.Logger) {
 
 	// Expose prometheus metrics via http at localhost:9008/metrics
 	port := "9008"
