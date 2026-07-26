@@ -3,6 +3,8 @@ package kt_observability_monitoring
 import (
 	"sync"
 
+	"github.com/keytiles/lib-errorhandling-golang/v2/pkg/kt_errors"
+	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -28,12 +30,18 @@ type HttpClientLazyMetricsSet struct {
 
 type HttpClientLazyMetricsSetOpt func(m *HttpClientLazyMetricsSet)
 
-// Creates a new metrics set you can use in your HTTP clients to create observability of invoking HTTP endpoints.
-//
-// Pass in "of" as the best name (meaningful) of the endpoint client is invoking! And feel free to use the optional setup too!
-func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt) *HttpClientLazyMetricsSet {
+// Preferred constructor. Returns a Fault when 'of' is empty (mandatory endpoint name).
+// On success the Fault is nil.
+func NewHttpClientLazyMetricsSetOrFault(of string, opts ...HttpClientLazyMetricsSetOpt) (*HttpClientLazyMetricsSet, kt_errors.Fault) {
+	methodName := "NewHttpClientLazyMetricsSetOrFault"
+
+	// 'of' is the endpoint name and must be provided by the caller.
 	if of == "" {
-		panic("Can not create HttpClientLazyMetricsSet with empty 'of' parameter!")
+		return nil, kt_errors.NewFaultBuilder(kt_errors.ValidationFault).
+			WithErrorCodes(kt_errors.VALIDATION_ERRCODE_MISSING_MANDATORY).
+			WithMessageTemplate("empty 'of' parameter is not allowed").
+			WithSource(PACKAGE_NAME, methodName).
+			Build()
 	}
 
 	metrics := HttpClientLazyMetricsSet{
@@ -49,7 +57,24 @@ func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt)
 		o(&metrics)
 	}
 
-	return &metrics
+	return &metrics, nil
+}
+
+// Creates a new metrics set you can use in your HTTP clients to create observability of invoking HTTP endpoints.
+//
+// Pass in "of" as the best name (meaningful) of the endpoint client is invoking! And feel free to use the optional setup too!
+//
+// Deprecated: use NewHttpClientLazyMetricsSetOrFault. On empty 'of' soft-fails (Warn + placeholder of "-"); does not panic.
+func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt) *HttpClientLazyMetricsSet {
+	methodName := "NewHttpClientLazyMetricsSet"
+
+	metrics, fault := NewHttpClientLazyMetricsSetOrFault(of, opts...)
+	if fault != nil {
+		kt_logging.GetLogger(PACKAGE_NAME + ".HttpClientLazyMetricsSet").
+			Warn("%v: soft-fail empty 'of' - using placeholder '-' - %v", methodName, fault)
+		metrics, _ = NewHttpClientLazyMetricsSetOrFault("-", opts...)
+	}
+	return metrics
 }
 
 // Assigns a "qualifier" to all Metric instances in your set of your choice. One example of good qualifiers could be the httpMethod like GET, POST, PUT etc to

@@ -2,7 +2,7 @@
 
 - Created / last modified: 2026-07-26
 - Target release folder: `development-plans/v2.1.0/`
-- Status: Group 2 complete; Group 1.1 `OrFault` (Counter/Summary/Gauge) implemented — next 1.2 empty `of`; then Metrics-v2.1 docs / CHANGELOG wrap-up
+- Status: Group 2 + Group 1.1 `OrFault` + Group 1.2 empty `of` implemented — next Metrics-v2.1 docs / CHANGELOG wrap-up
 
 ## Documentation references
 
@@ -58,30 +58,29 @@ func GetGaugeMetricInstanceOrFault(...) (prometheus.Gauge, kt_errors.Fault)
 
 Deprecated wrappers call `OrFault`; on Fault → Warn + discarded metric (no panic).
 
-#### 1.2 Empty `of` when creating HTTP lazy metric sets
+#### 1.2 Empty `of` when creating HTTP lazy metric sets — **fixed (increment 9d)**
 
 - Files: [`http_client_metrics.go`](../../pkg/kt_observability_monitoring/http_client_metrics.go), [`http_server_metrics.go`](../../pkg/kt_observability_monitoring/http_server_metrics.go)
 - Trigger: `NewHttpClientLazyMetricsSet("")` or `NewHttpServerLazyMetricsSet("")`
 - Likelihood: low–medium (bad config / empty string)
+- **Decision:** same `OrFault` + deprecate pattern as 1.1. Empty `of` → `ValidationFault` + `VALIDATION_ERRCODE_MISSING_MANDATORY`. Deprecated constructors Warn and create with placeholder `of="-"` (matches other label defaults); no panic.
+
+Preferred:
+
+```go
+func NewHttpClientLazyMetricsSetOrFault(of string, opts ...) (*HttpClientLazyMetricsSet, kt_errors.Fault)
+func NewHttpServerLazyMetricsSetOrFault(of string, opts ...) (*HttpServerLazyMetricsSet, kt_errors.Fault)
+```
 
 Client:
 
-```30:33:pkg/kt_observability_monitoring/http_client_metrics.go
+```go
 func NewHttpClientLazyMetricsSet(of string, opts ...HttpClientLazyMetricsSetOpt) *HttpClientLazyMetricsSet {
-	if of == "" {
-		panic("Can not create HttpClientLazyMetricsSet with empty 'of' parameter!")
-	}
+	// wraps OrFault; empty of → Warn + placeholder "-"
+}
 ```
 
-Server:
-
-```30:33:pkg/kt_observability_monitoring/http_server_metrics.go
-func NewHttpServerLazyMetricsSet(of string, opts ...HttpServerLazyMetricsSetOpt) *HttpServerLazyMetricsSet {
-	if of == "" {
-		panic("Can not create HttpServerLazyMetricsSet with empty 'of' parameter!")
-	}
-```
-
+Server: same pattern.
 ---
 
 ### Group 2 — Unwanted / indirect crash risks
@@ -224,7 +223,12 @@ func (tpl *MetricTemplate) Register(reg prometheus.Registerer) {
   - Nil `counterVec` → `IllegalStateFault`
   - Label mismatch from `GetMetricWith` → `ValidationFault` (cause wrapped when practical)
 - **Not a Fault:** nil `customLabels` → empty map; unregistered template → Warn only, then continue.
-- **Order:** implement **Counter** first (increment 9a); then Summary / Gauge with the same `*OrFault` + deprecate pattern; then 1.2 empty `of`.
+- **Order:** Counter / Summary / Gauge `OrFault` first; then 1.2 empty `of` with the same constructor `*OrFault` + deprecate pattern.
+
+### Group 1.2 HTTP lazy-set constructors (locked)
+
+- **Preferred:** `NewHttpClientLazyMetricsSetOrFault` / `NewHttpServerLazyMetricsSetOrFault` — empty `of` → `(nil, ValidationFault` + `MISSING_MANDATORY)`.
+- **Deprecated:** existing `NewHttp*LazyMetricsSet` — on Fault → Warn + create with placeholder `of="-"` so the set stays usable (no nil deref on later calls).
 
 ## Implementation steps
 
@@ -269,15 +273,16 @@ No intentional API redesign; soft-fail / harden so a running service does not di
    - Same pattern: `GetSummaryMetricInstanceOrFault` + deprecate `GetSummaryMetricInstance`.
 9c. **Increment — 1.1 Gauge `OrFault`** — implemented  
    - Same pattern: `GetGaugeMetricInstanceOrFault` + deprecate `GetGaugeMetricInstance`.
-9d. **Increment — 1.2 Empty `of` in `NewHttp*LazyMetricsSet`** — planned (next)  
-   - Soft-fail / Fault API shape TBD in that increment (can mirror OrFault or constructor soft-fail).
+9d. **Increment — 1.2 Empty `of` in `NewHttp*LazyMetricsSet`** — implemented  
+   - `NewHttpClientLazyMetricsSetOrFault` / `NewHttpServerLazyMetricsSetOrFault`; empty `of` → `ValidationFault` + `MISSING_MANDATORY`.  
+   - Deprecated constructors wrap + Warn + placeholder `of="-"`.
 
 ### Wrap-up
 
-10. **Update companion docs + CHANGELOG** for the chosen soft-fail / API behavior — partial  
+10. **Update companion docs + CHANGELOG** for the chosen soft-fail / API behavior — planned (next)  
     - Metrics + Logging docs updated for Group 2 soft-fail (2026-07-26).  
-    - Craft [MetricsObservability-v2.1.md](../../docs/MetricsObservability-v2.1.md) + CHANGELOG `2.1.0` notes after Group 1 (OrFault + 1.2) settles.  
-11. **Final verify** — partial: `go test` on logging+monitoring packages green (incl. Group 1.1 wrong-type); `go test -race` skipped on this Windows env (no CGO/gcc). Re-run `-race` where gcc is available.
+    - Craft [MetricsObservability-v2.1.md](../../docs/MetricsObservability-v2.1.md) + CHANGELOG `2.1.0` notes for OrFault APIs + empty-`of` soft-fail.  
+11. **Final verify** — partial: `go test` on logging+monitoring packages green (Group 1.1 + 1.2); `go test -race` skipped on this Windows env (no CGO/gcc). Re-run `-race` where gcc is available.
 
 ## How to verify (per increment)
 

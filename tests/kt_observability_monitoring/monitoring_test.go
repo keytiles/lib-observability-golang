@@ -536,6 +536,96 @@ func TestHttpClientLazyMetricsSet_HappyPath(t *testing.T) {
 	}, 1)
 }
 
+// Empty 'of' into deprecated NewHttpClientLazyMetricsSet must soft-fail (no panic; usable set with placeholder of).
+func TestNewHttpClientLazyMetricsSet_EmptyOf_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+
+	// ---- WHEN
+	var metrics *kt_observability_monitoring.HttpClientLazyMetricsSet
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic with empty of, got: %v", r)
+			}
+		}()
+		metrics = kt_observability_monitoring.NewHttpClientLazyMetricsSet("")
+	}()
+
+	// ---- THEN — soft-fail set must remain usable (placeholder of is ok)
+	if metrics == nil {
+		t.Fatal("expected non-nil metrics set (soft-fail placeholder is ok)")
+	}
+	metrics.RequestSent()
+}
+
+// Empty 'of' into NewHttpClientLazyMetricsSetOrFault must return ValidationFault (missing mandatory); set nil.
+func TestNewHttpClientLazyMetricsSetOrFault_EmptyOf_ReturnsFault(t *testing.T) {
+	// ---- GIVEN / WHEN
+	metrics, fault := kt_observability_monitoring.NewHttpClientLazyMetricsSetOrFault("")
+
+	// ---- THEN
+	if metrics != nil {
+		t.Fatal("expected nil metrics set when OrFault reports empty of")
+	}
+	if fault == nil {
+		t.Fatal("expected non-nil Fault for empty of")
+	}
+	if fault.GetKind() != kt_errors.ValidationFault {
+		t.Errorf("expected kind %q, got %q", kt_errors.ValidationFault, fault.GetKind())
+	}
+	if !fault.HasErrorCode(kt_errors.VALIDATION_ERRCODE_MISSING_MANDATORY) {
+		t.Errorf("expected error code %q, got codes %v", kt_errors.VALIDATION_ERRCODE_MISSING_MANDATORY, fault.GetErrorCodes())
+	}
+}
+
+// Empty 'of' into deprecated NewHttpServerLazyMetricsSet must soft-fail (no panic; usable set with placeholder of).
+func TestNewHttpServerLazyMetricsSet_EmptyOf_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+
+	// ---- WHEN
+	var metrics *kt_observability_monitoring.HttpServerLazyMetricsSet
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic with empty of, got: %v", r)
+			}
+		}()
+		metrics = kt_observability_monitoring.NewHttpServerLazyMetricsSet("")
+	}()
+
+	// ---- THEN
+	if metrics == nil {
+		t.Fatal("expected non-nil metrics set (soft-fail placeholder is ok)")
+	}
+	req, err := http.NewRequest(http.MethodGet, "http://example.local/", nil)
+	if err != nil {
+		t.Fatalf("NewRequest failed: %v", err)
+	}
+	metrics.ServeStarted(req)
+}
+
+// Empty 'of' into NewHttpServerLazyMetricsSetOrFault must return ValidationFault (missing mandatory); set nil.
+func TestNewHttpServerLazyMetricsSetOrFault_EmptyOf_ReturnsFault(t *testing.T) {
+	// ---- GIVEN / WHEN
+	metrics, fault := kt_observability_monitoring.NewHttpServerLazyMetricsSetOrFault("")
+
+	// ---- THEN
+	if metrics != nil {
+		t.Fatal("expected nil metrics set when OrFault reports empty of")
+	}
+	if fault == nil {
+		t.Fatal("expected non-nil Fault for empty of")
+	}
+	if fault.GetKind() != kt_errors.ValidationFault {
+		t.Errorf("expected kind %q, got %q", kt_errors.ValidationFault, fault.GetKind())
+	}
+	if !fault.HasErrorCode(kt_errors.VALIDATION_ERRCODE_MISSING_MANDATORY) {
+		t.Errorf("expected error code %q, got codes %v", kt_errors.VALIDATION_ERRCODE_MISSING_MANDATORY, fault.GetErrorCodes())
+	}
+}
+
 // Parallel use of one HttpClientLazyMetricsSet must be race-free (and must not panic).
 func TestHttpClientLazyMetricsSet_ConcurrentUse_NoRace(t *testing.T) {
 	// ---- GIVEN

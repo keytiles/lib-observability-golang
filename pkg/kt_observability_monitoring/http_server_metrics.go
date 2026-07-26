@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/keytiles/lib-errorhandling-golang/v2/pkg/kt_errors"
+	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -27,12 +29,18 @@ type HttpServerLazyMetricsSet struct {
 
 type HttpServerLazyMetricsSetOpt func(m *HttpServerLazyMetricsSet)
 
-// Creates a new metrics set you can use in your HTTP servers to create observability of serving HTTP endpoints.
-//
-// Pass in "of" as the best name (meaningful) of the HTTP server/handler is invoking! And feel free to use the optional setup too!
-func NewHttpServerLazyMetricsSet(of string, opts ...HttpServerLazyMetricsSetOpt) *HttpServerLazyMetricsSet {
+// Preferred constructor. Returns a Fault when 'of' is empty (mandatory endpoint / handler name).
+// On success the Fault is nil.
+func NewHttpServerLazyMetricsSetOrFault(of string, opts ...HttpServerLazyMetricsSetOpt) (*HttpServerLazyMetricsSet, kt_errors.Fault) {
+	methodName := "NewHttpServerLazyMetricsSetOrFault"
+
+	// 'of' is the endpoint / handler name and must be provided by the caller.
 	if of == "" {
-		panic("Can not create HttpServerLazyMetricsSet with empty 'of' parameter!")
+		return nil, kt_errors.NewFaultBuilder(kt_errors.ValidationFault).
+			WithErrorCodes(kt_errors.VALIDATION_ERRCODE_MISSING_MANDATORY).
+			WithMessageTemplate("empty 'of' parameter is not allowed").
+			WithSource(PACKAGE_NAME, methodName).
+			Build()
 	}
 
 	metrics := HttpServerLazyMetricsSet{
@@ -48,7 +56,24 @@ func NewHttpServerLazyMetricsSet(of string, opts ...HttpServerLazyMetricsSetOpt)
 		o(&metrics)
 	}
 
-	return &metrics
+	return &metrics, nil
+}
+
+// Creates a new metrics set you can use in your HTTP servers to create observability of serving HTTP endpoints.
+//
+// Pass in "of" as the best name (meaningful) of the HTTP server/handler is invoking! And feel free to use the optional setup too!
+//
+// Deprecated: use NewHttpServerLazyMetricsSetOrFault. On empty 'of' soft-fails (Warn + placeholder of "-"); does not panic.
+func NewHttpServerLazyMetricsSet(of string, opts ...HttpServerLazyMetricsSetOpt) *HttpServerLazyMetricsSet {
+	methodName := "NewHttpServerLazyMetricsSet"
+
+	metrics, fault := NewHttpServerLazyMetricsSetOrFault(of, opts...)
+	if fault != nil {
+		kt_logging.GetLogger(PACKAGE_NAME + ".HttpServerLazyMetricsSet").
+			Warn("%v: soft-fail empty 'of' - using placeholder '-' - %v", methodName, fault)
+		metrics, _ = NewHttpServerLazyMetricsSetOrFault("-", opts...)
+	}
+	return metrics
 }
 
 // Assigns a "serverId" to all Metric instances in your set. This is very useful if a specific client actually can have multiple instances for whatever reason.
