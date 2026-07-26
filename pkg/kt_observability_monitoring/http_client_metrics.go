@@ -1,6 +1,8 @@
 package kt_observability_monitoring
 
 import (
+	"sync"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -11,6 +13,8 @@ import (
 // Request-Response loop times AND you can do it
 // per each HttpSatatus codes if you want which brings pretty good observability just out of the box.
 type HttpClientLazyMetricsSet struct {
+	mu sync.Mutex
+
 	of        string
 	qualifier any
 	clientId  string
@@ -79,6 +83,9 @@ func WithClientId(id string) HttpClientLazyMetricsSetOpt {
 
 // Invoke when client sent the request - will create+increase counter
 func (m *HttpClientLazyMetricsSet) RequestSent() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.reqSentCounter == nil {
 		c := GetCounterMetricInstance(
 			GetClientRequestSentCountTemplate(),
@@ -93,6 +100,9 @@ func (m *HttpClientLazyMetricsSet) RequestSent() {
 // The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can
 // send "2xx" to represent anything in 2xx range.
 func (m *HttpClientLazyMetricsSet) RequestSucceeded(withHttpStatusCode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	c, found := m.reqSuccessCounterByStatusCode[withHttpStatusCode]
 	if !found {
 		c = GetCounterMetricInstance(
@@ -108,6 +118,9 @@ func (m *HttpClientLazyMetricsSet) RequestSucceeded(withHttpStatusCode string) {
 // The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can
 // send "5xx" to represent anything in 5xx range.
 func (m *HttpClientLazyMetricsSet) RequestFailed(withHttpStatusCode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	c, found := m.reqFailedCounterByStatusCode[withHttpStatusCode]
 	if !found {
 		c = GetCounterMetricInstance(
@@ -123,6 +136,9 @@ func (m *HttpClientLazyMetricsSet) RequestFailed(withHttpStatusCode string) {
 // The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can
 // send "2xx" to represent anything in 2xx range.
 func (m *HttpClientLazyMetricsSet) RequestTookMillis(httpStatusCode string, millis float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	c, found := m.reqProcessingTimeByStatusCode[httpStatusCode]
 	if !found {
 		c = GetSummaryMetricInstance(

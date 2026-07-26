@@ -1,11 +1,13 @@
 package kt_observability_monitoring
 
 import (
+	"sync"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
-	metricTemplatesAvailable bool
+	metricTemplatesOnce sync.Once
 
 	// Generic execution counter - "of" something/anything
 	execCount_template MetricTemplate
@@ -38,12 +40,12 @@ var (
 )
 
 func createMetricTemplatesIfNotCreatedYet(reg prometheus.Registerer) {
-	if metricTemplatesAvailable {
-		// we have them already - skip
-		return
-	}
-	metricTemplatesAvailable = true
+	metricTemplatesOnce.Do(func() {
+		createMetricTemplates(reg)
+	})
+}
 
+func createMetricTemplates(reg prometheus.Registerer) {
 	// "of" - you can add the name of the endpoint here you are invoking
 	// "protocol" - protocol of your client, e.g. "http" or "grpc" or whatever
 	// "statusCode" - makes sense for failure/retry maybe processing time cases? You can add here the statusCode you received from the server,

@@ -2,7 +2,7 @@
 
 - Created / last modified: 2026-07-26
 - Target release folder: `development-plans/v2.0.1/`
-- Status: analysis complete — Group 2.3 done; next 2.6; Group 1 last
+- Status: Group 2 complete — next Group 1 (explicit panic API); docs/CHANGELOG wrap-up after
 
 ## Documentation references
 
@@ -89,7 +89,7 @@ func NewHttpServerLazyMetricsSet(of string, opts ...HttpServerLazyMetricsSetOpt)
 
 No explicit `panic()` here, but a running service can still die.
 
-#### 2.1 Concurrent map write races in HTTP lazy sets — **high**
+#### 2.1 Concurrent map write races in HTTP lazy sets — **high** — **fixed (increment 2.1)**
 
 - Files: [`http_client_metrics.go`](../../pkg/kt_observability_monitoring/http_client_metrics.go), [`http_server_metrics.go`](../../pkg/kt_observability_monitoring/http_server_metrics.go)
 - Trigger: same metrics set used from multiple goroutines (normal HTTP usage); Go panics on concurrent map read/write
@@ -111,7 +111,7 @@ func (m *HttpClientLazyMetricsSet) RequestSucceeded(withHttpStatusCode string) {
 }
 ```
 
-#### 2.2 Prometheus `.With()` label mismatch — **medium**
+#### 2.2 Prometheus `.With()` label mismatch — **medium** — **fixed (increment 2.2)**
 
 - File: [`monitoring.go`](../../pkg/kt_observability_monitoring/monitoring.go)
 - Trigger: `customLabels` missing a required key, or has an unexpected extra key vs the template’s variable labels
@@ -138,7 +138,7 @@ Example (all three getters):
 	customLabels["metricType"] = metricTemplate.metricType
 ```
 
-#### 2.4 `New*Vec` panics (const vs variable label clash / invalid names) — **medium**
+#### 2.4 `New*Vec` panics (const vs variable label clash / invalid names) — **medium** — **fixed (increment 2.4)**
 
 - File: [`monitoring.go`](../../pkg/kt_observability_monitoring/monitoring.go) (and first use via [`metrics_templates.go`](../../pkg/kt_observability_monitoring/metrics_templates.go))
 - Trigger: `SetGlobalLabels` includes a key that also appears as a variable label (`of`, `qualifier`, `metricType`, …), or invalid metric/label names — Prometheus constructor panics
@@ -157,7 +157,7 @@ func GetCounterMetricTemplate(opts prometheus.CounterOpts, customLabelNames []st
 		counterVec:         prometheus.NewCounterVec(opts, customLabelNames),
 ```
 
-#### 2.5 `Register` + `reflect.ValueOf(reg).IsNil()` — **low**
+#### 2.5 `Register` + `reflect.ValueOf(reg).IsNil()` — **low** — **fixed (increment 2.5)**
 
 - File: [`monitoring.go`](../../pkg/kt_observability_monitoring/monitoring.go)
 - Trigger: `Register(nil)` where `nil` is a **nil interface** (no concrete type) — `IsNil` on invalid Value panics
@@ -172,7 +172,7 @@ func (tpl *MetricTemplate) Register(reg prometheus.Registerer) {
 	if !isNil {
 ```
 
-#### 2.6 Logging type assertions on defined types — **low**
+#### 2.6 Logging type assertions on defined types — **low** — **fixed (increment 2.6)**
 
 - File: [`logging.go`](../../pkg/kt_observability_logging/logging.go)
 - Trigger: map value is a defined type with underlying int/string/bool (e.g. `type MyInt int`); `Kind` matches but `value.(int)` panics
@@ -183,7 +183,7 @@ func (tpl *MetricTemplate) Register(reg prometheus.Registerer) {
 				label = kt_logging.FloatLabel(key, float64(value.(int)))
 ```
 
-#### 2.7 Nil `_LOGGER` on zero-value `MetricTemplate` — **low**
+#### 2.7 Nil `_LOGGER` on zero-value `MetricTemplate` — **low** — **fixed (increment 2.7)**
 
 - File: [`monitoring.go`](../../pkg/kt_observability_monitoring/monitoring.go)
 - Trigger: `MetricTemplate{}` (or otherwise nil `_LOGGER`) then hit Error/Warn paths → nil pointer dereference
@@ -220,37 +220,33 @@ func (tpl *MetricTemplate) Register(reg prometheus.Registerer) {
 ### Done
 
 1. **Analyze `pkg/` for panic / crash risks and document findings** — implemented.
+
+#### Group 2 — unwanted / indirect (implemented)
+
+No intentional API redesign; soft-fail / harden so a running service does not die on these paths. Order was easiest tests first; concurrency last.
+
 2. **Increment — 2.3 Nil `customLabels` map write** — implemented  
    - Red: `Get*MetricInstance(tpl, nil)` must not panic.  
    - Fix: treat nil map as empty (allocate) before writing `metricType`.
-
-### Group 2 — one increment each (TDD: red → fix → green)
-
-Order: easiest / clearest tests first; concurrency last among Group 2.
-
-3. **Increment — 2.6 Logging defined-type assertions** — planned  
-   - Red: `BuildLogLabels` with a defined underlying type (e.g. `type MyInt int`) must not panic.  
-   - Fix: convert via `reflect.Value` (or equivalent) instead of concrete type assert.
-
-4. **Increment — 2.7 Nil `_LOGGER` on zero `MetricTemplate`** — planned  
-   - Red: zero-value / nil-logger template paths must not nil-deref when logging.  
-   - Fix: guard logger (lazy get / nil check) before Error/Warn.
-
-5. **Increment — 2.2 Prometheus `.With()` label mismatch** — planned  
-   - Red: incomplete or extra custom labels must not panic the process.  
-   - Fix: validate labels against template (or use a non-panicking path) and soft-fail (log; return no-op / zero metric — decide in increment).
-
-6. **Increment — 2.4 `New*Vec` const vs variable label clash** — planned  
-   - Red: `SetGlobalLabels` overlapping variable names (e.g. `of`) then creating a template must not panic.  
-   - Fix: detect overlap / invalid names before `New*Vec` and soft-fail (log; skip create / return error state — decide in increment).
-
-7. **Increment — 2.5 `Register(nil)` + `reflect.IsNil`** — planned  
-   - Red: `Register` with a nil interface must not panic.  
-   - Fix: safe nil check before `reflect.Value.IsNil()`.
-
-8. **Increment — 2.1 Concurrent map races in HTTP lazy sets** — planned  
-   - Red: parallel use of the same metrics set fails under `go test -race` (and must not panic).  
-   - Fix: synchronize map access (`sync.Mutex` or equivalent).
+3. **Increment — 2.6 Logging defined-type assertions** — implemented  
+   - Red: `BuildLogLabels` with defined underlying types must not panic.  
+   - Fix: convert via `reflect.Value` (`Int`/`Uint`/`Float`/`String`/`Bool`).
+4. **Increment — 2.7 Nil `_LOGGER` on zero `MetricTemplate`** — implemented  
+   - Red: zero-value `Register` must not nil-deref.  
+   - Fix: `ensureLogger()` before Error/Warn.
+5. **Increment — 2.2 Prometheus `.With()` label mismatch** — implemented  
+   - Red: missing/extra custom labels must not panic.  
+   - Fix: `GetMetricWith` + Warn + package-level discarded Counter/Gauge/Observer.
+6. **Increment — 2.4 Const vs variable label clash** — implemented  
+   - Red: overlapping global ConstLabel (e.g. `of`) must not panic template create/use.  
+   - Fix: pre-check overlap before `New*Vec` (nil vec + Warn); nil-vec-safe `Register`/getters.  
+   - Note: current Prometheus `New*Vec` often does not panic on overlap; Register previously soft-failed — pre-check still applied for clear soft-fail.
+7. **Increment — 2.5 `Register(nil)` + `reflect.IsNil`** — implemented  
+   - Red: nil Registerer interface must not panic.  
+   - Fix: `isNilRegisterer` checks bare nil before `IsNil`.
+8. **Increment — 2.1 Concurrent map races in HTTP lazy sets** — implemented  
+   - Red: parallel stress panics with `concurrent map read and map write` (race detector unavailable here without gcc).  
+   - Fix: `sync.Mutex` on client/server lazy sets; also `sync.Once` for metric template singleton init (needed for concurrent first-use safety).
 
 ### Group 1 — last (likely API changes)
 
@@ -261,8 +257,8 @@ Order: easiest / clearest tests first; concurrency last among Group 2.
 
 ### Wrap-up
 
-10. **Update companion docs + CHANGELOG** for the chosen soft-fail / API behavior — planned (after increments land, or per-increment if behavior is user-visible).  
-11. **Final verify** — planned: `go test ./tests/...` and `go test -race` on monitoring HTTP lazy set tests.
+10. **Update companion docs + CHANGELOG** for the chosen soft-fail / API behavior — planned (after Group 1 / when user-visible behavior is settled).  
+11. **Final verify** — partial: `go test` on logging+monitoring packages green; `go test -race` skipped on this Windows env (no CGO/gcc). Re-run `-race` where gcc is available.
 
 ## How to verify (per increment)
 

@@ -54,6 +54,49 @@ func TestBuildLogLabels_SupportedTypes(t *testing.T) {
 	})
 }
 
+// Defined types with supported underlying kinds must not panic (use reflect conversion, not concrete asserts).
+func TestBuildLogLabels_DefinedUnderlyingTypes_DoesNotPanic(t *testing.T) {
+	type MyInt int
+	type MyString string
+	type MyBool bool
+
+	// ---- GIVEN
+	labels := map[string]any{
+		"myInt": MyInt(7),
+		"myStr": MyString("defined"),
+		"myBool": MyBool(true),
+	}
+
+	// ---- WHEN
+	var result []kt_logging.Label
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic for defined underlying types, got: %v", r)
+			}
+		}()
+		result = kt_observability_logging.BuildLogLabels(labels)
+	}()
+
+	// ---- THEN
+	byKey := labelsByKey(result)
+	assertLabel(t, byKey, "myInt", kt_logging.FloatType, func(l kt_logging.Label) {
+		if l.GetFloatValue() != 7 {
+			t.Errorf("myInt: got %v", l.GetFloatValue())
+		}
+	})
+	assertLabel(t, byKey, "myStr", kt_logging.StringType, func(l kt_logging.Label) {
+		if l.GetStringValue() != "defined" {
+			t.Errorf("myStr: got %q", l.GetStringValue())
+		}
+	})
+	assertLabel(t, byKey, "myBool", kt_logging.BoolType, func(l kt_logging.Label) {
+		if !l.GetBoolValue() {
+			t.Errorf("myBool: expected true")
+		}
+	})
+}
+
 // Verifies unsupported value types become a string label with a clear fallback message.
 func TestBuildLogLabels_UnsupportedType(t *testing.T) {
 	// GIVEN

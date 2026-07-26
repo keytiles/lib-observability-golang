@@ -1,6 +1,7 @@
 package kt_observability_monitoring_test
 
 import (
+	"fmt"
 	"net/http"
 	"sync"
 	"testing"
@@ -186,6 +187,148 @@ func TestGetSummaryMetricInstance_NilCustomLabels_DoesNotPanic(t *testing.T) {
 	observer.Observe(1.5)
 }
 
+// Register with a nil Registerer interface must not panic.
+func TestMetricTemplate_Register_NilInterface_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	tpl := kt_observability_monitoring.GetCounterMetricTemplate(
+		prometheus.CounterOpts{Name: "nilRegistererCounter", Help: "test nil registerer"},
+		[]string{},
+	)
+
+	// ---- WHEN
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic on Register(nil), got: %v", r)
+			}
+		}()
+		var reg prometheus.Registerer // nil interface
+		tpl.Register(reg)
+	}()
+
+	// ---- THEN
+	if tpl.IsRegistered() {
+		t.Fatal("expected template to remain unregistered after Register(nil)")
+	}
+}
+
+// Overlapping global ConstLabel and variable label names must not panic New*Vec.
+func TestGetCounterMetricTemplate_GlobalLabelOverlap_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	prev := kt_observability_monitoring.GetGlobalLabels()
+	t.Cleanup(func() {
+		kt_observability_monitoring.SetGlobalLabels(prev)
+	})
+	kt_observability_monitoring.SetGlobalLabels(map[string]any{
+		"serviceName": "obs-test",
+		"of":          "clash", // overlaps variable label "of"
+	})
+
+	// ---- WHEN
+	var tpl kt_observability_monitoring.MetricTemplate
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic on const/variable label overlap, got: %v", r)
+			}
+		}()
+		tpl = kt_observability_monitoring.GetCounterMetricTemplate(
+			prometheus.CounterOpts{Name: "overlapLabelsCounter", Help: "test overlap"},
+			[]string{"of"},
+		)
+	}()
+
+	// ---- THEN — template usable without crash (Register + instance soft-fail ok)
+	tpl.Register(kt_observability_monitoring.MetricRegistry)
+	c := kt_observability_monitoring.GetCounterMetricInstance(tpl, map[string]any{"of": "work"})
+	if c == nil {
+		t.Fatal("expected non-nil counter from soft-fail template")
+	}
+	c.Inc()
+}
+
+// Incomplete custom labels must not panic the process; returned metric stays usable (soft-fail / discarded).
+func TestGetCounterMetricInstance_MissingLabels_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	tpl := kt_observability_monitoring.GetCounterMetricTemplate(
+		prometheus.CounterOpts{Name: "missingLabelsCounter", Help: "test missing labels"},
+		[]string{"of"},
+	)
+	tpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	var counter prometheus.Counter
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic with missing custom labels, got: %v", r)
+			}
+		}()
+		// metricType is added by getter; "of" is intentionally missing
+		counter = kt_observability_monitoring.GetCounterMetricInstance(tpl, map[string]any{})
+	}()
+
+	// ---- THEN
+	if counter == nil {
+		t.Fatal("expected non-nil counter (discarded/soft-fail is ok)")
+	}
+	counter.Inc()
+}
+
+// Extra unexpected custom labels must not panic the process.
+func TestGetCounterMetricInstance_ExtraLabels_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	tpl := kt_observability_monitoring.GetCounterMetricTemplate(
+		prometheus.CounterOpts{Name: "extraLabelsCounter", Help: "test extra labels"},
+		[]string{"of"},
+	)
+	tpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	var counter prometheus.Counter
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic with extra custom labels, got: %v", r)
+			}
+		}()
+		counter = kt_observability_monitoring.GetCounterMetricInstance(tpl, map[string]any{
+			"of": "work",
+			"unexpected": "x",
+		})
+	}()
+
+	// ---- THEN
+	if counter == nil {
+		t.Fatal("expected non-nil counter (discarded/soft-fail is ok)")
+	}
+	counter.Inc()
+}
+
+// Zero-value MetricTemplate must not nil-deref when Register tries to Warn (unknown metric type path).
+func TestMetricTemplate_Register_ZeroValue_DoesNotNilDerefLogger(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	tpl := kt_observability_monitoring.MetricTemplate{}
+
+	// ---- WHEN / THEN
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic/nil-deref on zero-value Register, got: %v", r)
+			}
+		}()
+		tpl.Register(kt_observability_monitoring.MetricRegistry)
+	}()
+	if tpl.IsRegistered() {
+		t.Fatal("expected zero-value template to remain unregistered")
+	}
+}
+
 // Happy-path: HttpClientLazyMetricsSet creates and updates client request metrics.
 func TestHttpClientLazyMetricsSet_HappyPath(t *testing.T) {
 	// GIVEN
@@ -222,6 +365,86 @@ func TestHttpClientLazyMetricsSet_HappyPath(t *testing.T) {
 	assertSummarySampleCount(t, took, map[string]string{
 		"of": "downstream", "protocol": "http", "statusCode": "200", "qualifier": "GET", "clientId": "client-1", "metricType": "summary",
 	}, 1)
+}
+
+// Parallel use of one HttpClientLazyMetricsSet must be race-free (and must not panic).
+func TestHttpClientLazyMetricsSet_ConcurrentUse_NoRace(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	// Warm templates so concurrent stress targets the lazy-set maps, not first-time template init.
+	_ = kt_observability_monitoring.GetClientRequestSentCountTemplate()
+	_ = kt_observability_monitoring.GetClientRequestSucceededCountTemplate()
+	_ = kt_observability_monitoring.GetClientRequestFailedCountTemplate()
+	_ = kt_observability_monitoring.GetClientRequestProcessingTimeTemplate()
+
+	metrics := kt_observability_monitoring.NewHttpClientLazyMetricsSet(
+		"concurrent-client",
+		kt_observability_monitoring.WithHttpClientId("c-race"),
+		kt_observability_monitoring.WithHttpClientQualifier("GET"),
+	)
+	const goroutines = 32
+	const iters = 40
+
+	// ---- WHEN
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for g := 0; g < goroutines; g++ {
+		go func(id int) {
+			defer wg.Done()
+			status := fmt.Sprintf("%d", 200+(id%3))
+			for i := 0; i < iters; i++ {
+				metrics.RequestSent()
+				metrics.RequestSucceeded(status)
+				metrics.RequestFailed(status)
+				metrics.RequestTookMillis(status, float64(i))
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	// ---- THEN — reached without panic; race detector covers data races when available
+}
+
+// Parallel use of one HttpServerLazyMetricsSet must be race-free (and must not panic).
+func TestHttpServerLazyMetricsSet_ConcurrentUse_NoRace(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	_ = kt_observability_monitoring.GetServerServeStartedCountTemplate()
+	_ = kt_observability_monitoring.GetServerServeSucceededCountTemplate()
+	_ = kt_observability_monitoring.GetServerServeFailedCountTemplate()
+	_ = kt_observability_monitoring.GetServerServeProcessingTimeTemplate()
+
+	metrics := kt_observability_monitoring.NewHttpServerLazyMetricsSet(
+		"concurrent-server",
+		kt_observability_monitoring.WithHttpServerId("s-race"),
+	)
+	methods := []string{http.MethodGet, http.MethodPost, http.MethodPut}
+	const goroutines = 32
+	const iters = 40
+
+	// ---- WHEN
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for g := 0; g < goroutines; g++ {
+		go func(id int) {
+			defer wg.Done()
+			req, err := http.NewRequest(methods[id%len(methods)], "http://example.local/x", nil)
+			if err != nil {
+				t.Errorf("NewRequest failed: %v", err)
+				return
+			}
+			status := fmt.Sprintf("%d", 200+(id%3))
+			for i := 0; i < iters; i++ {
+				metrics.ServeStarted(req)
+				metrics.ServeSucceeded(req, status)
+				metrics.ServeFailed(req, status)
+				metrics.ServeTookMillis(req, status, float64(i))
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	// ---- THEN — reached without panic; race detector covers data races when available
 }
 
 func ensureMetricsInitialized(t *testing.T) {

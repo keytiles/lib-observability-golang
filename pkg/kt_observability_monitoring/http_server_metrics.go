@@ -2,6 +2,7 @@ package kt_observability_monitoring
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -13,6 +14,8 @@ import (
 // Request-Response loop times AND you can do it
 // per each HttpSatatus codes/ Methods which brings pretty good observability just out of the box.
 type HttpServerLazyMetricsSet struct {
+	mu sync.Mutex
+
 	of       string
 	serverId string
 
@@ -66,6 +69,9 @@ func getReqMethod(req *http.Request) string {
 
 // Invoke when server started to process the request - will create+increase counter
 func (m *HttpServerLazyMetricsSet) ServeStarted(req *http.Request) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	method := getReqMethod(req)
 	c, found := m.serveStartedCounter[method]
 	if !found {
@@ -82,6 +88,9 @@ func (m *HttpServerLazyMetricsSet) ServeStarted(req *http.Request) {
 // counter. The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say
 // you can send "2xx" to represent anything in 2xx range.
 func (m *HttpServerLazyMetricsSet) ServeSucceeded(req *http.Request, withHttpStatusCode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	method := getReqMethod(req)
 	key := method + withHttpStatusCode
 	c, found := m.serveSuccessCounterByStatusCode[key]
@@ -99,6 +108,9 @@ func (m *HttpServerLazyMetricsSet) ServeSucceeded(req *http.Request, withHttpSta
 // counter The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say
 // you can send "5xx" to represent anything in 5xx range.
 func (m *HttpServerLazyMetricsSet) ServeFailed(req *http.Request, withHttpStatusCode string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	method := getReqMethod(req)
 	key := method + withHttpStatusCode
 	c, found := m.serveFailedCounterByStatusCode[key]
@@ -116,6 +128,9 @@ func (m *HttpServerLazyMetricsSet) ServeFailed(req *http.Request, withHttpStatus
 // The statusCode is taken as a string although normally it is int. Reason: this way if you do not want to distinguish fully just by ranges let's say you can
 // send "2xx" to represent anything in 2xx range.
 func (m *HttpServerLazyMetricsSet) ServeTookMillis(req *http.Request, withHttpStatusCode string, millis float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	method := getReqMethod(req)
 	key := method + withHttpStatusCode
 	c, found := m.serveProcessingTimeByStatusCode[key]
