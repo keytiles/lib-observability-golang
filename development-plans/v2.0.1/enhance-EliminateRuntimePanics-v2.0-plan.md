@@ -257,7 +257,9 @@ No intentional API redesign; soft-fail / harden so a running service does not di
 
 ### Wrap-up
 
-10. **Update companion docs + CHANGELOG** for the chosen soft-fail / API behavior — planned (after Group 1 / when user-visible behavior is settled).  
+10. **Update companion docs + CHANGELOG** for the chosen soft-fail / API behavior — partial  
+    - Metrics + Logging docs updated for Group 2 soft-fail (2026-07-26).  
+    - Architecture + CHANGELOG still planned after Group 1 / when API behavior settles.  
 11. **Final verify** — partial: `go test` on logging+monitoring packages green; `go test -race` skipped on this Windows env (no CGO/gcc). Re-run `-race` where gcc is available.
 
 ## How to verify (per increment)
