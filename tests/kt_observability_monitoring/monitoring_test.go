@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/keytiles/lib-observability-golang/v2/pkg/kt_observability_monitoring"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -99,6 +100,90 @@ func TestHttpServerLazyMetricsSet_HappyPath(t *testing.T) {
 	assertSummarySampleCount(t, took, map[string]string{
 		"of": "ping", "protocol": "http", "statusCode": "200", "qualifier": "GET", "serverId": "srv-1", "metricType": "summary",
 	}, 1)
+}
+
+// Nil customLabels must not panic when creating a Counter instance (only metricType label needed).
+func TestGetCounterMetricInstance_NilCustomLabels_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	tpl := kt_observability_monitoring.GetCounterMetricTemplate(
+		prometheus.CounterOpts{Name: "nilCustomLabelsCounter", Help: "test nil customLabels"},
+		[]string{},
+	)
+	tpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	var counter prometheus.Counter
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic with nil customLabels, got: %v", r)
+			}
+		}()
+		counter = kt_observability_monitoring.GetCounterMetricInstance(tpl, nil)
+	}()
+
+	// ---- THEN
+	if counter == nil {
+		t.Fatal("expected non-nil counter instance")
+	}
+	counter.Inc()
+}
+
+// Nil customLabels must not panic when creating a Gauge instance (only metricType label needed).
+func TestGetGaugeMetricInstance_NilCustomLabels_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	tpl := kt_observability_monitoring.GetGaugeMetricTemplate(
+		prometheus.GaugeOpts{Name: "nilCustomLabelsGauge", Help: "test nil customLabels"},
+		[]string{},
+	)
+	tpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	var gauge prometheus.Gauge
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic with nil customLabels, got: %v", r)
+			}
+		}()
+		gauge = kt_observability_monitoring.GetGaugeMetricInstance(tpl, nil)
+	}()
+
+	// ---- THEN
+	if gauge == nil {
+		t.Fatal("expected non-nil gauge instance")
+	}
+	gauge.Set(1)
+}
+
+// Nil customLabels must not panic when creating a Summary instance (only metricType label needed).
+func TestGetSummaryMetricInstance_NilCustomLabels_DoesNotPanic(t *testing.T) {
+	// ---- GIVEN
+	ensureMetricsInitialized(t)
+	tpl := kt_observability_monitoring.GetSummaryMetricTemplate(
+		prometheus.SummaryOpts{Name: "nilCustomLabelsSummary", Help: "test nil customLabels"},
+		[]string{},
+	)
+	tpl.Register(kt_observability_monitoring.MetricRegistry)
+
+	// ---- WHEN
+	var observer prometheus.Observer
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("expected no panic with nil customLabels, got: %v", r)
+			}
+		}()
+		observer = kt_observability_monitoring.GetSummaryMetricInstance(tpl, nil)
+	}()
+
+	// ---- THEN
+	if observer == nil {
+		t.Fatal("expected non-nil summary observer instance")
+	}
+	observer.Observe(1.5)
 }
 
 // Happy-path: HttpClientLazyMetricsSet creates and updates client request metrics.

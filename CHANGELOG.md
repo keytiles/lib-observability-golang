@@ -8,7 +8,7 @@ We will mark these with Git Tags
 
 ## release 2.0.1
 
-Fixes / Improvements
+Fixes / Improvements:
 - Applying Keytiles lib standards
   - Introducing constant `LIB_NAME`
   - Based on the above introducing constants `PACKAGE_NAME` in all packages - used as a prefix for kt_errors.Fault sources and Logging

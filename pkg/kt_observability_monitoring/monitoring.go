@@ -163,6 +163,10 @@ func GetSummaryMetricInstance(metricTemplate MetricTemplate, customLabels map[st
 	if !metricTemplate.isRegistered {
 		metricTemplate._LOGGER.Warn("%v: metric instance creation was invoked but this template was not registered yet...", metricTemplate.ToString())
 	}
+	// Callers may pass nil; allocate so we can set metricType without panicking.
+	if customLabels == nil {
+		customLabels = make(map[string]any)
+	}
 	customLabels["metricType"] = metricTemplate.metricType
 
 	// this is not working for some reason
@@ -198,6 +202,10 @@ func GetCounterMetricInstance(metricTemplate MetricTemplate, customLabels map[st
 		metricTemplate._LOGGER.Warn("%v: metric instance creation was invoked but this template was not registered yet...", metricTemplate.ToString())
 	}
 
+	// Callers may pass nil; allocate so we can set metricType without panicking.
+	if customLabels == nil {
+		customLabels = make(map[string]any)
+	}
 	customLabels["metricType"] = metricTemplate.metricType
 	return metricTemplate.counterVec.With(BuildMetricLabels(customLabels))
 }
@@ -226,6 +234,10 @@ func GetGaugeMetricInstance(metricTemplate MetricTemplate, customLabels map[stri
 		metricTemplate._LOGGER.Warn("%v: metric instance creation was invoked but this template was not registered yet...", metricTemplate.ToString())
 	}
 
+	// Callers may pass nil; allocate so we can set metricType without panicking.
+	if customLabels == nil {
+		customLabels = make(map[string]any)
+	}
 	customLabels["metricType"] = metricTemplate.metricType
 	return metricTemplate.gaugeVec.With(BuildMetricLabels(customLabels))
 }
