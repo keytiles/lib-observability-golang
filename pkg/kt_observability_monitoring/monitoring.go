@@ -8,6 +8,7 @@ import (
 	"github.com/keytiles/lib-errorhandling-golang/v2/pkg/kt_errors"
 	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
 	"github.com/keytiles/lib-observability-golang/v2/pkg/kt_observability"
+	"github.com/keytiles/lib-utils-golang/v2/pkg/kt_utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -215,8 +216,9 @@ func GetSummaryMetricTemplate(opts prometheus.SummaryOpts, customLabelNames []st
 // Preferred way to create a Summary instance. Returns a Fault on misuse / misconfiguration (wrong template type, nil vec, label mismatch).
 // On success the Fault is nil.
 func GetSummaryMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels map[string]any) (prometheus.Observer, kt_errors.Fault) {
-	methodName := "GetSummaryMetricInstanceOrFault"
+	methodName := "GetSummaryMetricInstanceOrFault()"
 
+	// Reject wrong template type early.
 	if metricTemplate.metricType != "summary" {
 		return nil, kt_errors.NewFaultBuilder(kt_errors.ValidationFault).
 			WithErrorCodes(kt_errors.VALIDATION_ERRCODE_WRONG_DATATYPE).
@@ -225,15 +227,20 @@ func GetSummaryMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels
 			WithSource(PACKAGE_NAME, methodName).
 			Build()
 	}
+
+	// Soft signal only — caller may still create an instance before Register.
 	if !metricTemplate.isRegistered {
 		metricTemplate.ensureLogger()
-		metricTemplate._LOGGER.Warn("%v: metric instance creation was invoked but this template was not registered yet...", metricTemplate.ToString())
+		metricTemplate._LOGGER.Warn("%v: %v - metric instance creation was invoked but this template was not registered yet...", methodName, metricTemplate.ToString())
 	}
+
+	// Callers may pass nil; allocate so we can set metricType.
 	if customLabels == nil {
 		customLabels = make(map[string]any)
 	}
 	customLabels["metricType"] = metricTemplate.metricType
 
+	// Nil vec means template create soft-failed earlier (e.g. const/variable label clash).
 	if metricTemplate.summaryVec == nil {
 		return nil, kt_errors.NewFaultBuilder(kt_errors.IllegalStateFault).
 			WithErrorCodes(kt_errors.ILLEGALSTATE_ERRCODE_EXPECTATION_FAILED).
@@ -243,6 +250,7 @@ func GetSummaryMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels
 			Build()
 	}
 
+	// Resolve concrete series for the given labels.
 	observerInstance, err := metricTemplate.summaryVec.GetMetricWith(BuildMetricLabels(customLabels))
 	if err != nil {
 		return nil, kt_errors.NewFaultBuilder(kt_errors.ValidationFault).
@@ -262,10 +270,13 @@ func GetSummaryMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels
 //
 // Deprecated: use GetSummaryMetricInstanceOrFault. On failure soft-fails (Warn + discarded observer); does not panic.
 func GetSummaryMetricInstance(metricTemplate MetricTemplate, customLabels map[string]any) prometheus.Observer {
+	methodName := "GetSummaryMetricInstance()"
+
 	observer, fault := GetSummaryMetricInstanceOrFault(metricTemplate, customLabels)
 	if fault != nil {
 		metricTemplate.ensureLogger()
-		metricTemplate._LOGGER.Warn("%v: soft-fail creating summary instance - returning discarded observer - %v", metricTemplate.ToString(), fault)
+		metricTemplate._LOGGER.Warn("%v: soft-fail creating summary instance for %v - returning discarded observer - %s",
+			methodName, metricTemplate.ToString(), kt_utils.VarPrinter{TheVar: fault})
 		return discardedObserver
 	}
 	return observer
@@ -300,8 +311,9 @@ func GetCounterMetricTemplate(opts prometheus.CounterOpts, customLabelNames []st
 // Preferred way to create a Counter instance. Returns a Fault on misuse / misconfiguration (wrong template type, nil vec, label mismatch).
 // On success the Fault is nil.
 func GetCounterMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels map[string]any) (prometheus.Counter, kt_errors.Fault) {
-	methodName := "GetCounterMetricInstanceOrFault"
+	methodName := "GetCounterMetricInstanceOrFault()"
 
+	// Reject wrong template type early.
 	if metricTemplate.metricType != "counter" {
 		return nil, kt_errors.NewFaultBuilder(kt_errors.ValidationFault).
 			WithErrorCodes(kt_errors.VALIDATION_ERRCODE_WRONG_DATATYPE).
@@ -310,15 +322,20 @@ func GetCounterMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels
 			WithSource(PACKAGE_NAME, methodName).
 			Build()
 	}
+
+	// Soft signal only — caller may still create an instance before Register.
 	if !metricTemplate.isRegistered {
 		metricTemplate.ensureLogger()
-		metricTemplate._LOGGER.Warn("%v: metric instance creation was invoked but this template was not registered yet...", metricTemplate.ToString())
+		metricTemplate._LOGGER.Warn("%v: %v - metric instance creation was invoked but this template was not registered yet...", methodName, metricTemplate.ToString())
 	}
+
+	// Callers may pass nil; allocate so we can set metricType.
 	if customLabels == nil {
 		customLabels = make(map[string]any)
 	}
 	customLabels["metricType"] = metricTemplate.metricType
 
+	// Nil vec means template create soft-failed earlier (e.g. const/variable label clash).
 	if metricTemplate.counterVec == nil {
 		return nil, kt_errors.NewFaultBuilder(kt_errors.IllegalStateFault).
 			WithErrorCodes(kt_errors.ILLEGALSTATE_ERRCODE_EXPECTATION_FAILED).
@@ -328,6 +345,7 @@ func GetCounterMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels
 			Build()
 	}
 
+	// Resolve concrete series for the given labels.
 	counter, err := metricTemplate.counterVec.GetMetricWith(BuildMetricLabels(customLabels))
 	if err != nil {
 		return nil, kt_errors.NewFaultBuilder(kt_errors.ValidationFault).
@@ -347,10 +365,13 @@ func GetCounterMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels
 //
 // Deprecated: use GetCounterMetricInstanceOrFault. On failure soft-fails (Warn + discarded counter); does not panic.
 func GetCounterMetricInstance(metricTemplate MetricTemplate, customLabels map[string]any) prometheus.Counter {
+	methodName := "GetCounterMetricInstance()"
+
 	counter, fault := GetCounterMetricInstanceOrFault(metricTemplate, customLabels)
 	if fault != nil {
 		metricTemplate.ensureLogger()
-		metricTemplate._LOGGER.Warn("%v: soft-fail creating counter instance - returning discarded counter - %v", metricTemplate.ToString(), fault)
+		metricTemplate._LOGGER.Warn("%v: soft-fail creating counter instance for %v - returning discarded counter - %s",
+			methodName, metricTemplate.ToString(), kt_utils.VarPrinter{TheVar: fault})
 		return discardedCounter
 	}
 	return counter
@@ -385,8 +406,9 @@ func GetGaugeMetricTemplate(opts prometheus.GaugeOpts, customLabelNames []string
 // Preferred way to create a Gauge instance. Returns a Fault on misuse / misconfiguration (wrong template type, nil vec, label mismatch).
 // On success the Fault is nil.
 func GetGaugeMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels map[string]any) (prometheus.Gauge, kt_errors.Fault) {
-	methodName := "GetGaugeMetricInstanceOrFault"
+	methodName := "GetGaugeMetricInstanceOrFault()"
 
+	// Reject wrong template type early.
 	if metricTemplate.metricType != "gauge" {
 		return nil, kt_errors.NewFaultBuilder(kt_errors.ValidationFault).
 			WithErrorCodes(kt_errors.VALIDATION_ERRCODE_WRONG_DATATYPE).
@@ -395,15 +417,20 @@ func GetGaugeMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels m
 			WithSource(PACKAGE_NAME, methodName).
 			Build()
 	}
+
+	// Soft signal only — caller may still create an instance before Register.
 	if !metricTemplate.isRegistered {
 		metricTemplate.ensureLogger()
-		metricTemplate._LOGGER.Warn("%v: metric instance creation was invoked but this template was not registered yet...", metricTemplate.ToString())
+		metricTemplate._LOGGER.Warn("%v: %v - metric instance creation was invoked but this template was not registered yet...", methodName, metricTemplate.ToString())
 	}
+
+	// Callers may pass nil; allocate so we can set metricType.
 	if customLabels == nil {
 		customLabels = make(map[string]any)
 	}
 	customLabels["metricType"] = metricTemplate.metricType
 
+	// Nil vec means template create soft-failed earlier (e.g. const/variable label clash).
 	if metricTemplate.gaugeVec == nil {
 		return nil, kt_errors.NewFaultBuilder(kt_errors.IllegalStateFault).
 			WithErrorCodes(kt_errors.ILLEGALSTATE_ERRCODE_EXPECTATION_FAILED).
@@ -413,6 +440,7 @@ func GetGaugeMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels m
 			Build()
 	}
 
+	// Resolve concrete series for the given labels.
 	gauge, err := metricTemplate.gaugeVec.GetMetricWith(BuildMetricLabels(customLabels))
 	if err != nil {
 		return nil, kt_errors.NewFaultBuilder(kt_errors.ValidationFault).
@@ -432,10 +460,13 @@ func GetGaugeMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels m
 //
 // Deprecated: use GetGaugeMetricInstanceOrFault. On failure soft-fails (Warn + discarded gauge); does not panic.
 func GetGaugeMetricInstance(metricTemplate MetricTemplate, customLabels map[string]any) prometheus.Gauge {
+	methodName := "GetGaugeMetricInstance()"
+
 	gauge, fault := GetGaugeMetricInstanceOrFault(metricTemplate, customLabels)
 	if fault != nil {
 		metricTemplate.ensureLogger()
-		metricTemplate._LOGGER.Warn("%v: soft-fail creating gauge instance - returning discarded gauge - %v", metricTemplate.ToString(), fault)
+		metricTemplate._LOGGER.Warn("%v: soft-fail creating gauge instance for %v - returning discarded gauge - %s",
+			methodName, metricTemplate.ToString(), kt_utils.VarPrinter{TheVar: fault})
 		return discardedGauge
 	}
 	return gauge

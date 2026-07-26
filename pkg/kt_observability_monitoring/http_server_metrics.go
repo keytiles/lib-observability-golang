@@ -6,6 +6,7 @@ import (
 
 	"github.com/keytiles/lib-errorhandling-golang/v2/pkg/kt_errors"
 	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
+	"github.com/keytiles/lib-utils-golang/v2/pkg/kt_utils"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -32,7 +33,7 @@ type HttpServerLazyMetricsSetOpt func(m *HttpServerLazyMetricsSet)
 // Preferred constructor. Returns a Fault when 'of' is empty (mandatory endpoint / handler name).
 // On success the Fault is nil.
 func NewHttpServerLazyMetricsSetOrFault(of string, opts ...HttpServerLazyMetricsSetOpt) (*HttpServerLazyMetricsSet, kt_errors.Fault) {
-	methodName := "NewHttpServerLazyMetricsSetOrFault"
+	methodName := "NewHttpServerLazyMetricsSetOrFault()"
 
 	// 'of' is the endpoint / handler name and must be provided by the caller.
 	if of == "" {
@@ -65,12 +66,12 @@ func NewHttpServerLazyMetricsSetOrFault(of string, opts ...HttpServerLazyMetrics
 //
 // Deprecated: use NewHttpServerLazyMetricsSetOrFault. On empty 'of' soft-fails (Warn + placeholder of "-"); does not panic.
 func NewHttpServerLazyMetricsSet(of string, opts ...HttpServerLazyMetricsSetOpt) *HttpServerLazyMetricsSet {
-	methodName := "NewHttpServerLazyMetricsSet"
+	methodName := "NewHttpServerLazyMetricsSet()"
 
 	metrics, fault := NewHttpServerLazyMetricsSetOrFault(of, opts...)
 	if fault != nil {
 		kt_logging.GetLogger(PACKAGE_NAME + ".HttpServerLazyMetricsSet").
-			Warn("%v: soft-fail empty 'of' - using placeholder '-' - %v", methodName, fault)
+			Warn("%v: soft-fail empty 'of' - using placeholder '-' - %s", methodName, kt_utils.VarPrinter{TheVar: fault})
 		metrics, _ = NewHttpServerLazyMetricsSetOrFault("-", opts...)
 	}
 	return metrics
