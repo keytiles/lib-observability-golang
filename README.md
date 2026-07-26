@@ -10,7 +10,7 @@ More detail lives under [`docs/`](docs/):
 
 - [Architecture-v2.0.md](docs/Architecture-v2.0.md) — how the library fits together
 - [LoggingObservability-v2.0.md](docs/LoggingObservability-v2.0.md) — logging labels helpers
-- [MetricsObservability-v2.0.md](docs/MetricsObservability-v2.0.md) — Prometheus metrics templates and HTTP helpers
+- [MetricsObservability-v2.1.md](docs/MetricsObservability-v2.1.md) — Prometheus metrics templates and HTTP helpers
 
 # What does it bring?
 

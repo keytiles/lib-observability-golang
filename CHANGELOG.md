@@ -8,10 +8,18 @@ We will mark these with Git Tags
 
 ## release 2.1.0
 
+New features:
+- Metrics: preferred `*OrFault` APIs returning `kt_errors.Fault` (no process panic on misuse)
+  - `GetCounterMetricInstanceOrFault` / `GetSummaryMetricInstanceOrFault` / `GetGaugeMetricInstanceOrFault`
+  - `NewHttpClientLazyMetricsSetOrFault` / `NewHttpServerLazyMetricsSetOrFault`
+- Dependency: `github.com/keytiles/lib-errorhandling-golang/v2`
+
 Fixes / Improvements:
 - Applying Keytiles lib standards
   - Introducing constant `LIB_NAME`
   - Based on the above introducing constants `PACKAGE_NAME` in all packages - used as a prefix for kt_errors.Fault sources and Logging
+- Metrics / logging soft-fail hardening so the library does not crash the process on common misuse (nil label maps, label mismatch → discarded metric, const/variable label clash, concurrent HTTP lazy sets, `Register(nil)`, wrong template type, empty HTTP lazy-set `of`)
+- Deprecated `Get*MetricInstance` and `NewHttp*LazyMetricsSet` soft-fail (Warn + discarded metric / placeholder `of="-"`) instead of panicking
 
 Upgrades:
 - Golang 1.26.0 is used from now

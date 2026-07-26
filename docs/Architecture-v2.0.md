@@ -22,7 +22,7 @@ It builds on [lib-logging-golang](https://github.com/keytiles/lib-logging-golang
 - `pkg` — library identity (`LIB_NAME = "keytiles.lib.observability"`)
 - `pkg/kt_observability` — shared foundation: builds the default **global labels** map from environment variables
 - `pkg/kt_observability_logging` — Logging feature: map → log labels (see [LoggingObservability-v2.0.md](LoggingObservability-v2.0.md))
-- `pkg/kt_observability_monitoring` — Metrics feature: registry, templates/instances, HTTP client/server helpers (see [MetricsObservability-v2.0.md](MetricsObservability-v2.0.md))
+- `pkg/kt_observability_monitoring` — Metrics feature: registry, templates/instances, HTTP client/server helpers (see [MetricsObservability-v2.1.md](MetricsObservability-v2.1.md))
 
 ```mermaid
 flowchart TD
@@ -84,4 +84,4 @@ Happy-path coverage (asserted, CI-friendly) lives under:
 ## Related docs
 
 - [LoggingObservability-v2.0.md](LoggingObservability-v2.0.md)
-- [MetricsObservability-v2.0.md](MetricsObservability-v2.0.md)
+- [MetricsObservability-v2.1.md](MetricsObservability-v2.1.md)

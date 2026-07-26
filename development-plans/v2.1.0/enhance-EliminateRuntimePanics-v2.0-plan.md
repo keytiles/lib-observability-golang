@@ -2,7 +2,7 @@
 
 - Created / last modified: 2026-07-26
 - Target release folder: `development-plans/v2.1.0/`
-- Status: Group 2 + Group 1.1 `OrFault` + Group 1.2 empty `of` implemented — next Metrics-v2.1 docs / CHANGELOG wrap-up
+- Status: Group 2 + Group 1 complete (OrFault + empty `of`) — docs/CHANGELOG wrap-up done for Metrics v2.1; final verify as needed
 
 ## Documentation references
 
@@ -279,9 +279,9 @@ No intentional API redesign; soft-fail / harden so a running service does not di
 
 ### Wrap-up
 
-10. **Update companion docs + CHANGELOG** for the chosen soft-fail / API behavior — planned (next)  
-    - Metrics + Logging docs updated for Group 2 soft-fail (2026-07-26).  
-    - Craft [MetricsObservability-v2.1.md](../../docs/MetricsObservability-v2.1.md) + CHANGELOG `2.1.0` notes for OrFault APIs + empty-`of` soft-fail.  
+10. **Update companion docs + CHANGELOG** for the chosen soft-fail / API behavior — implemented  
+    - [MetricsObservability-v2.1.md](../../docs/MetricsObservability-v2.1.md) crafted (self-contained; OrFault + deprecate soft-fail).  
+    - CHANGELOG `2.1.0` notes updated; README / Architecture / Logging related links pointed at Metrics v2.1 / plan folder `v2.1.0`.  
 11. **Final verify** — partial: `go test` on logging+monitoring packages green (Group 1.1 + 1.2); `go test -race` skipped on this Windows env (no CGO/gcc). Re-run `-race` where gcc is available.
 
 ## How to verify (per increment)

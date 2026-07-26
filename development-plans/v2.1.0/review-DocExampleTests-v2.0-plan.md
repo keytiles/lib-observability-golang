@@ -1,7 +1,7 @@
 # Plan: Review — docs, example app, and tests
 
 - Created / last modified: 2026-07-25
-- Target release folder: `development-plans/v2.0.1/`
+- Target release folder: `development-plans/v2.1.0/`
 - Status: implemented (first joint review/cleanup task on this library)
 
 ## Documentation references
@@ -10,7 +10,7 @@ Companion feature / architecture docs produced or updated by this plan:
 
 - [docs/Architecture-v2.0.md](../../docs/Architecture-v2.0.md)
 - [docs/LoggingObservability-v2.0.md](../../docs/LoggingObservability-v2.0.md)
-- [docs/MetricsObservability-v2.0.md](../../docs/MetricsObservability-v2.0.md)
+- [docs/MetricsObservability-v2.1.md](../../docs/MetricsObservability-v2.1.md)
 - [README.md](../../README.md) (light polish only)
 
 Related agent rules followed:

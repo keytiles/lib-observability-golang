@@ -5,13 +5,16 @@
 
 ## What changed vs previous
 
-- Initial Metrics Observability documentation for the v2.0 line (no prior versioned feature doc).
-- Soft-fail hardening for unwanted process crashes (Group 2 of [enhance-EliminateRuntimePanics-v2.0-plan.md](../development-plans/v2.1.0/enhance-EliminateRuntimePanics-v2.0-plan.md)):
-  - `nil` custom label maps are treated as empty
-  - Missing / extra instance labels Warn and return a discarded (unregistered) metric instead of panicking
-  - Global const labels must not overlap variable label names (e.g. do not put `of` in `SetGlobalLabels`); overlap soft-fails template creation
-  - HTTP lazy metric sets are safe for concurrent use from multiple goroutines
-  - `Register(nil)` soft-fails with a Warn (template stays unregistered)
+Compared to [MetricsObservability-v2.0.md](MetricsObservability-v2.0.md):
+
+- Preferred instance / constructor APIs that return [`kt_errors.Fault`](https://github.com/keytiles/lib-errorhandling-golang) instead of panicking:
+  - `GetCounterMetricInstanceOrFault` / `GetSummaryMetricInstanceOrFault` / `GetGaugeMetricInstanceOrFault`
+  - `NewHttpClientLazyMetricsSetOrFault` / `NewHttpServerLazyMetricsSetOrFault`
+- Previous `Get*MetricInstance` and `NewHttp*LazyMetricsSet` remain but are **deprecated**: on failure they Warn and soft-fail (discarded metric or placeholder `of="-"`); they do **not** panic
+- Dependency on `github.com/keytiles/lib-errorhandling-golang/v2` for Faults
+- Group 2 soft-fail hardening from v2.0 is unchanged and still applies (nil label maps, label mismatch → discarded metric, const/variable clash, concurrent HTTP lazy sets, `Register(nil)`)
+
+Planning: [enhance-EliminateRuntimePanics-v2.0-plan.md](../development-plans/v2.1.0/enhance-EliminateRuntimePanics-v2.0-plan.md)
 
 ## TLDR
 
@@ -19,16 +22,20 @@ Package `kt_observability_monitoring` wraps Prometheus so Keytiles Go services e
 
 - Init a dedicated `MetricRegistry` with **global const labels**
 - Create metrics from **templates** (fixed name + type + allowed custom label names)
-- Create **instances** by filling those custom labels (no extra labels)
+- Create **instances** by filling those custom labels (prefer `*OrFault` APIs)
 - Optionally use **HTTP lazy metric sets** for client/server request observability
-- Prefer **soft-fail + Warn** over process crash on misuse / misconfiguration (wrong labels, nil registry, etc.)
+- Prefer **Fault return / soft-fail + Warn** over process crash on misuse / misconfiguration
 
 For the overall package layout and shared labels, see [Architecture-v2.0.md](Architecture-v2.0.md).
 
 ## Package
 
 - Path: `pkg/kt_observability_monitoring`
-- Depends on: `pkg/kt_observability` (default global labels), `prometheus/client_golang`, `lib-logging-golang` (warnings on register / soft-fail paths)
+- Depends on:
+  - `pkg/kt_observability` (default global labels)
+  - `prometheus/client_golang`
+  - `lib-logging-golang` (warnings on register / soft-fail paths)
+  - `lib-errorhandling-golang` (`kt_errors.Fault` on preferred APIs)
 
 ## Init and global labels
 
@@ -38,7 +45,7 @@ For the overall package layout and shared labels, see [Architecture-v2.0.md](Arc
 
 Call `SetGlobalLabels` **before** creating templates/instances if you need custom const labels (templates capture const labels at creation time).
 
-Do **not** put keys that are also used as **variable** labels on templates into global const labels (common ones: `of`, `qualifier`, `metricType`, `protocol`, `statusCode`, `clientId`, `serverId`). Overlap causes template creation to soft-fail (Warn; no vec; later instance calls return a discarded metric).
+Do **not** put keys that are also used as **variable** labels on templates into global const labels (common ones: `of`, `qualifier`, `metricType`, `protocol`, `statusCode`, `clientId`, `serverId`). Overlap causes template creation to soft-fail (Warn; no vec; later instance calls return a Fault / discarded metric).
 
 ## Templates vs instances
 
@@ -52,21 +59,37 @@ Flow:
 
 1. Get or create a template (`GetCounterMetricTemplate` / `GetSummaryMetricTemplate` / `GetGaugeMetricTemplate`, or a predefined getter below)
 2. `Register(MetricRegistry)` (predefined templates register themselves on first use)
-3. Create an instance with concrete custom label values:
-   - `GetCounterMetricInstance`
-   - `GetSummaryMetricInstance`
-   - `GetGaugeMetricInstance`
+3. Create an instance with concrete custom label values — **prefer**:
+   - `GetCounterMetricInstanceOrFault`
+   - `GetSummaryMetricInstanceOrFault`
+   - `GetGaugeMetricInstanceOrFault`
 
-Happy path: supply **all** custom label names defined by the template (and no unexpected extras). `metricType` is set by the getters.
+Happy path: supply **all** custom label names defined by the template (and no unexpected extras). `metricType` is set by the getters. Success returns `(metric, nil)` Fault.
 
-Misuse / soft-fail (does **not** crash the process):
+### Preferred `*OrFault` instance APIs
+
+Signature shape:
+
+- `(MetricTemplate, customLabels map[string]any) (prometheus.Counter|Gauge|Observer, kt_errors.Fault)`
+
+On failure returns `(nil, fault)`. Typical Faults:
+
+- Wrong template type (e.g. Summary template into Counter getter) → `ValidationFault` + `VALIDATION_ERRCODE_WRONG_DATATYPE`
+- Nil vec (template create soft-failed earlier) → `IllegalStateFault` + `ILLEGALSTATE_ERRCODE_EXPECTATION_FAILED`
+- Missing / extra labels vs the template → `ValidationFault` + `VALIDATION_ERRCODE_INVALID_VALUE` (Prometheus cause attached when available)
+
+### Deprecated getters (kept for compatibility)
+
+- `GetCounterMetricInstance` / `GetSummaryMetricInstance` / `GetGaugeMetricInstance`
+- Wrap the matching `*OrFault` method
+- On any Fault: **Warn** and return a package-level **discarded** Counter / Gauge / Observer (unregistered; `Inc` / `Set` / `Observe` are safe no-ops for scrape output)
+- Do **not** panic
+
+Other soft-fail (does **not** crash the process):
 
 - `customLabels == nil` — treated as an empty map
-- Missing or extra labels vs the template — Warn; returns a package-level **discarded** Counter / Gauge / Observer (unregistered; `Inc` / `Set` / `Observe` are safe no-ops for scrape output)
-- Template created after a const/variable label clash (nil vec) — same discarded-metric path
 - `Register` with a nil registerer — Warn; `IsRegistered()` stays false
-
-Note: wrong template **type** in a getter (e.g. Counter template into `GetSummaryMetricInstance`) still panics today — that is tracked as Group 1 in the eliminate-panics plan.
+- Unregistered template used to create an instance — Warn only, then continue (not a Fault by itself)
 
 ## Predefined templates
 
@@ -106,14 +129,18 @@ Convenience wrappers that create series only when first used (“lazy”). Safe 
 
 ### `HttpServerLazyMetricsSet`
 
-- `NewHttpServerLazyMetricsSet(of, opts...)` — `of` is required (endpoint / handler name); empty `of` still panics today (Group 1)
+- **Preferred:** `NewHttpServerLazyMetricsSetOrFault(of, opts...) (*HttpServerLazyMetricsSet, kt_errors.Fault)`
+  - Empty `of` → `(nil, ValidationFault` + `VALIDATION_ERRCODE_MISSING_MANDATORY)`
+- **Deprecated:** `NewHttpServerLazyMetricsSet(of, opts...)` — on empty `of`: Warn and create with placeholder `of="-"` (set stays usable)
 - Options: `WithHttpServerId`
 - Methods: `ServeStarted`, `ServeSucceeded`, `ServeFailed`, `ServeTookMillis`
 - Uses HTTP method as `qualifier`; `protocol` is `"http"`
 
 ### `HttpClientLazyMetricsSet`
 
-- `NewHttpClientLazyMetricsSet(of, opts...)` — `of` is required; empty `of` still panics today (Group 1)
+- **Preferred:** `NewHttpClientLazyMetricsSetOrFault(of, opts...) (*HttpClientLazyMetricsSet, kt_errors.Fault)`
+  - Empty `of` → same Missing-mandatory Fault as server
+- **Deprecated:** `NewHttpClientLazyMetricsSet(of, opts...)` — empty `of` → Warn + placeholder `of="-"`
 - Options: `WithHttpClientId`, `WithHttpClientQualifier` (older `WithClientId` / `WithQualifier` are deprecated aliases)
 - Methods: `RequestSent`, `RequestSucceeded`, `RequestFailed`, `RequestTookMillis`
 - Status codes are **strings** so you can pass `"200"` or ranges like `"2xx"` / `"5xx"`
@@ -139,10 +166,11 @@ go http.ListenAndServe(":9008", mux)
 - Runnable demo: [examples/simple-service](../examples/simple-service/)
   - HTTP ping / ping-fail on `:8080`
   - Metrics scrape on `http://localhost:9008/metrics`
-- Automated tests (happy path + soft-fail / concurrency): [tests/kt_observability_monitoring](../tests/kt_observability_monitoring/)
+- Automated tests (happy path + soft-fail / OrFault / concurrency): [tests/kt_observability_monitoring](../tests/kt_observability_monitoring/)
 
 ## Related
 
 - Logging (separate feature): [LoggingObservability-v2.0.md](LoggingObservability-v2.0.md)
 - Shared labels foundation: `pkg/kt_observability`
+- Prior feature doc: [MetricsObservability-v2.0.md](MetricsObservability-v2.0.md)
 - Planning: [enhance-EliminateRuntimePanics-v2.0-plan.md](../development-plans/v2.1.0/enhance-EliminateRuntimePanics-v2.0-plan.md)

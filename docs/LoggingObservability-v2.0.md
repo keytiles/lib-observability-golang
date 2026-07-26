@@ -6,7 +6,7 @@
 ## What changed vs previous
 
 - Initial Logging Observability documentation for the v2.0 line (no prior versioned feature doc).
-- `BuildLogLabels` accepts **defined types** with supported underlying kinds (e.g. `type MyInt int`) without panicking — part of Group 2 in [enhance-EliminateRuntimePanics-v2.0-plan.md](../development-plans/v2.0.1/enhance-EliminateRuntimePanics-v2.0-plan.md).
+- `BuildLogLabels` accepts **defined types** with supported underlying kinds (e.g. `type MyInt int`) without panicking — part of Group 2 in [enhance-EliminateRuntimePanics-v2.0-plan.md](../development-plans/v2.1.0/enhance-EliminateRuntimePanics-v2.0-plan.md).
 
 ## TLDR
 
@@ -71,6 +71,6 @@ You can also mix custom keys into a map and pass it to `BuildLogLabels` if your 
 
 ## Related
 
-- Metrics (separate feature): [MetricsObservability-v2.0.md](MetricsObservability-v2.0.md)
+- Metrics (separate feature): [MetricsObservability-v2.1.md](MetricsObservability-v2.1.md)
 - Shared labels foundation: `pkg/kt_observability`
-- Planning: [enhance-EliminateRuntimePanics-v2.0-plan.md](../development-plans/v2.0.1/enhance-EliminateRuntimePanics-v2.0-plan.md)
+- Planning: [enhance-EliminateRuntimePanics-v2.0-plan.md](../development-plans/v2.1.0/enhance-EliminateRuntimePanics-v2.0-plan.md)
