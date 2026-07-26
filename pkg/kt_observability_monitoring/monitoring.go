@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/keytiles/lib-errorhandling-golang/v2/pkg/kt_errors"
 	"github.com/keytiles/lib-logging-golang/v2/pkg/kt_logging"
 	"github.com/keytiles/lib-observability-golang/v2/pkg/kt_observability"
 	"github.com/prometheus/client_golang/prometheus"
@@ -269,6 +270,10 @@ func GetCounterMetricTemplate(opts prometheus.CounterOpts, customLabelNames []st
 		metricType:         "counter",
 		_LOGGER:            logger,
 	}
+}
+
+func GetCounterMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels map[string]any) (prometheus.Counter, kt_errors.Fault) {
+
 }
 
 func GetCounterMetricInstance(metricTemplate MetricTemplate, customLabels map[string]any) prometheus.Counter {

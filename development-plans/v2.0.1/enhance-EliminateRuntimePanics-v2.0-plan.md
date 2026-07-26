@@ -2,7 +2,7 @@
 
 - Created / last modified: 2026-07-26
 - Target release folder: `development-plans/v2.0.1/`
-- Status: Group 2 complete — next Group 1 (explicit panic API); docs/CHANGELOG wrap-up after
+- Status: Group 2 complete — Group 1.1 Counter `OrFault` API agreed (implement next); Summary/Gauge + 1.2 after; docs/CHANGELOG wrap-up after
 
 ## Documentation references
 
@@ -27,7 +27,7 @@ Related agent rules:
 
 - Inventory all panic / crash risks under `pkg/` — done (findings above).
 - Eliminate **Group 2** unwanted crashes first, one finding per TDD increment.
-- Eliminate **Group 1** explicit `panic()` last (likely API changes).
+- Eliminate **Group 1** explicit `panic()` last — getters via `*OrFault` + deprecated soft-fail wrappers; then empty `of`.
 - Update tests, and docs/CHANGELOG as user-visible behavior settles.
 
 ## Findings (step 1 analysis)
@@ -41,23 +41,27 @@ Findings are split into two groups:
 
 These are intentional fail-fast checks written by us.
 
-#### 1.1 Wrong metric template type in getters
+#### 1.1 Wrong metric template type in getters — **API agreed (Counter first)**
 
 - Files: [`monitoring.go`](../../pkg/kt_observability_monitoring/monitoring.go)
 - Trigger: caller passes a Counter template into `GetSummaryMetricInstance` (or similar mismatch)
 - Likelihood: low (API misuse)
+- **Decision (locked 2026-07-26):** non-breaking deprecate + `OrFault` preferred API using [`kt_errors.Fault`](https://github.com/keytiles/lib-errorhandling-golang) (see Decisions / increment 9a).
 
-Example (`GetSummaryMetricInstance`; Counter/Gauge getters are the same pattern):
+Example (still panics today for Summary/Gauge; Counter stub `GetCounterMetricInstanceOrFault` added):
 
-```157:162:pkg/kt_observability_monitoring/monitoring.go
-func GetSummaryMetricInstance(metricTemplate MetricTemplate, customLabels map[string]any) prometheus.Observer {
-	if metricTemplate.metricType != "summary" {
-		err := fmt.Sprintf(".GetSummaryMetricInstance() is invoked on %v but type of metric is different", metricTemplate.ToString())
-		metricTemplate._LOGGER.Error("ciritical error! app will panic - %v", err)
-		panic(err)
+```go
+func GetCounterMetricInstanceOrFault(metricTemplate MetricTemplate, customLabels map[string]any) (prometheus.Counter, kt_errors.Fault)
+
+// Deprecated path still panics on wrong type until increment 9a lands
+func GetCounterMetricInstance(...) prometheus.Counter {
+	if metricTemplate.metricType != "counter" {
+		panic(...)
+	}
+}
 ```
 
-Same for Counter (~lines 191–195) and Gauge (~lines 219–223).
+Same panic pattern today for Summary and Gauge getters (follow Counter once green).
 
 #### 1.2 Empty `of` when creating HTTP lazy metric sets
 
@@ -205,7 +209,7 @@ func (tpl *MetricTemplate) Register(reg prometheus.Registerer) {
 ## Decisions we made
 
 - Tackle **Group 2 (unwanted / indirect)** first — no intentional API redesign required for most of these; safer incremental fixes.
-- Tackle **Group 1 (explicit `panic()`)** last — those checks likely need API changes (e.g. return `error` instead of `panic`), so they come after the soft-crash fixes.
+- Tackle **Group 1 (explicit `panic()`)** last — after soft-crash fixes; API shape agreed for getters (below).
 - Work in **one-finding increments**, using **TDD**:
   1. Write a readable test for the **desired** behavior (“must not panic” / soft-fail / race-free).
   2. Confirm it is **red** (panic, nil deref, or `-race` failure).
@@ -214,6 +218,18 @@ func (tpl *MetricTemplate) Register(reg prometheus.Registerer) {
 - Prefer one scenario per test, GIVEN / WHEN / THEN comments (Keytiles test style).
 - For **2.1 concurrent maps**: the red signal is primarily `go test -race` on a small parallel stress test (panic alone can be flaky); green means no panic and no race report.
 - Exact soft-fail shape per finding (log + no-op vs return `error` vs validate-and-skip) is chosen inside each increment when writing the red test / fix — prefer the smallest change that removes the panic without a broad API break in Group 2.
+
+### Group 1.1 getter API (locked)
+
+- **Preferred:** `GetCounterMetricInstanceOrFault(...) (prometheus.Counter, kt_errors.Fault)` — same `GetCounter…` prefix for IDE autocomplete; returns bare `nil` Fault on success, `(nil, fault)` on failure.
+- **Deprecated (kept):** `GetCounterMetricInstance(...) prometheus.Counter` — wraps `OrFault`; on any Fault → **Warn** + `discardedCounter` (no panic). Non-breaking for existing call sites.
+- **Fault library:** [lib-errorhandling-golang](https://github.com/keytiles/lib-errorhandling-golang) (`kt_errors.Fault`). No circular dependency (errorhandling does not import observability). Add `github.com/keytiles/lib-errorhandling-golang/v2` to `go.mod`.
+- **`OrFault` failure modes** (all return Fault; deprecated path swallows → discarded):
+  - Wrong template type → `ValidationFault` + `VALIDATION_ERRCODE_WRONG_DATATYPE`; `WithSource(PACKAGE_NAME, …)`
+  - Nil `counterVec` → `IllegalStateFault`
+  - Label mismatch from `GetMetricWith` → `ValidationFault` (cause wrapped when practical)
+- **Not a Fault:** nil `customLabels` → empty map; unregistered template → Warn only, then continue.
+- **Order:** implement **Counter** first (increment 9a); then Summary / Gauge with the same `*OrFault` + deprecate pattern; then 1.2 empty `of`.
 
 ## Implementation steps
 
@@ -248,12 +264,19 @@ No intentional API redesign; soft-fail / harden so a running service does not di
    - Red: parallel stress panics with `concurrent map read and map write` (race detector unavailable here without gcc).  
    - Fix: `sync.Mutex` on client/server lazy sets; also `sync.Once` for metric template singleton init (needed for concurrent first-use safety).
 
-### Group 1 — last (likely API changes)
+### Group 1 — explicit `panic()` (API agreed for getters)
 
-9. **Increment(s) — explicit `panic()` removal** — planned  
-   - 1.1 Wrong template type in `Get*MetricInstance`  
-   - 1.2 Empty `of` in `NewHttp*LazyMetricsSet`  
-   - Design return/`error` (or other) API, TDD red tests for non-panicking behavior, then implement. May be one or more increments once API shape is agreed.
+9a. **Increment — 1.1 Counter `OrFault`** — planned (next)  
+   - Add dep `lib-errorhandling-golang/v2`; implement stub `GetCounterMetricInstanceOrFault`.  
+   - Red: wrong-type into `GetCounterMetricInstance` must not panic (discarded); `OrFault` returns non-nil `Fault`, nil counter.  
+   - Green: `OrFault` owns logic; deprecated getter wraps + Warn + `discardedCounter`; remove panic.  
+   - Existing soft-fail tests (nil/missing/extra labels) stay green via the wrapper.
+9b. **Increment — 1.1 Summary `OrFault`** — planned (after 9a)  
+   - Same pattern: `GetSummaryMetricInstanceOrFault` + deprecate `GetSummaryMetricInstance`.
+9c. **Increment — 1.1 Gauge `OrFault`** — planned (after 9b)  
+   - Same pattern: `GetGaugeMetricInstanceOrFault` + deprecate `GetGaugeMetricInstance`.
+9d. **Increment — 1.2 Empty `of` in `NewHttp*LazyMetricsSet`** — planned (after 9a–9c)  
+   - Soft-fail / Fault API shape TBD in that increment (can mirror OrFault or constructor soft-fail).
 
 ### Wrap-up
 
