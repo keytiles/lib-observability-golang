@@ -6,6 +6,13 @@ We will mark these with Git Tags
 
 # Changes in releases
 
+## release 2.1.1
+
+Fixes
+- brings latest libs
+  - github.com/keytiles/lib-errorhandling-golang/v2 v2.0.5 -> v2.0.6
+  - github.com/keytiles/lib-logging-golang/v2 v2.1.1 -> v2.2.0
+
 ## release 2.1.0
 
 New features:
