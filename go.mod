@@ -4,8 +4,8 @@ go 1.26.0
 
 require (
 	github.com/gorilla/mux v1.8.1
-	github.com/keytiles/lib-errorhandling-golang/v2 v2.0.5
-	github.com/keytiles/lib-logging-golang/v2 v2.1.1
+	github.com/keytiles/lib-errorhandling-golang/v2 v2.0.6
+	github.com/keytiles/lib-logging-golang/v2 v2.2.0
 	github.com/keytiles/lib-utils-golang/v2 v2.0.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
